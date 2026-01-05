@@ -82,89 +82,75 @@ El script compara el tamaño de cada página contra los valores estándar en **p
 
 ## Advertencias y fallas comunes
 
-### El PDF no es A4 ni Carta
-- Se emite advertencia o error según el modo configurado.
+### 1) El PDF no es A4 ni Carta
 
-### Página con rotación (`/Rotate`)
-- El script informa la rotación detectada para evitar errores de posicionamiento.
+**Síntoma**
+- Se emite advertencia o error (según `--paper-check`).
 
-### QR fuera del área visible
-- Verificar coordenadas y tamaño del QR.
+**Causa**
+- El PDF fue generado en otro formato (Legal/Oficio/personalizado) o con un MediaBox no estándar.
+
+**Solución**
+- Usar `--paper-check warn` para continuar o convertir el PDF a A4/Carta antes del proceso.
+
+---
+
+### 2) Página con rotación (`/Rotate`)
+
+**Síntoma**
+- Se informa una advertencia indicando la rotación detectada.
+
+**Causa**
+- El PDF tiene rotación lógica aplicada; las coordenadas PDF siguen el sistema estándar, lo que puede no coincidir con la vista “en pantalla”.
+
+**Solución**
+- Definir coordenadas considerando el origen PDF (abajo-izquierda) o incorporar una transformación automática de coordenadas (mejora futura).
+
+---
+
+### 3) QR fuera del área visible
+
+**Síntoma**
+- El proceso finaliza correctamente, pero el QR no aparece.
+
+**Causas frecuentes**
+- Coordenadas fuera del tamaño de página.
+- Tamaño del QR demasiado grande.
+- Confusión entre coordenadas “desde arriba” vs “desde abajo”.
+
+**Solución**
+- Verificar valores y unidades; recordar que el origen (0,0) está abajo-izquierda.
+
+---
+
+### 4) Página fuera de rango
+
+**Síntoma**
+- Error `page_number fuera de rango`.
+
+**Causa**
+- El número de página indicado no existe en el PDF.
+
+**Solución**
+- Verificar la cantidad real de páginas del PDF.
 
 ---
 
 ## Arquitectura del script
 
-El script `insert_qr_pdf.py` sigue una arquitectura modular:
+El script `insert_qr_pdf.py` fue diseñado de forma **modular**, separando responsabilidades para facilitar mantenimiento y extensiones (GUI, API, transformaciones por rotación, inserción múltiple, etc.).
 
-```mermaid
-classDiagram
-    direction LR
+---
 
-    class InsertQRParams {
-        +str input_pdf
-        +str output_pdf
-        +str url
-        +int page_number
-        +float x_value
-        +float y_value
-        +str unit
-        +float size_value
-        +str size_unit
-        +float tol_pt
-        +str paper_check
-        +bool check_all_pages
-        +str paper_dim_mode
-    }
+## Consideraciones técnicas
 
-    class CLI {
-        +parse_args()
-        +main()
-    }
-
-    class Units {
-        +to_points(value, unit) float
-    }
-
-    class PageValidation {
-        +PAPER_SIZES_PT
-        +classify_page_size(w, h, tol) str?
-        +validate_pdf_pages(reader, params)
-    }
-
-    class Rotation {
-        +get_page_rotation_degrees(page) int
-        +visible_dimensions(w, h, rot) tuple
-    }
-
-    class QRGenerator {
-        +generate_qr_png_bytes(url, box_size, border) bytes
-    }
-
-    class OverlayBuilder {
-        +build_overlay_pdf(page_w, page_h, qr_png, x, y, size) bytes
-    }
-
-    class PDFInserter {
-        +insert_qr_into_pdf(params)
-    }
-
-    CLI --> InsertQRParams : construye
-    CLI --> PDFInserter : invoca
-
-    PDFInserter ..> PageValidation : valida tamaño
-    PDFInserter ..> Rotation : lee /Rotate
-    PDFInserter ..> Units : convierte unidades
-    PDFInserter ..> QRGenerator : genera QR PNG
-    PDFInserter ..> OverlayBuilder : crea overlay
-    PDFInserter ..> "pypdf.PdfReader/PdfWriter" : lee/escribe
-    OverlayBuilder ..> "reportlab.canvas" : dibuja QR
-    QRGenerator ..> "qrcode + PIL" : genera imagen
-    PageValidation ..> Rotation : (modo visible)
-```
+- El QR se inserta mediante un **overlay PDF**, sin alterar el contenido original.
+- El sistema de coordenadas es el estándar del formato PDF (origen abajo-izquierda).
+- El script no reescala ni rota páginas automáticamente.
+- Compatible con PDFs multipágina.
 
 ---
 
 ## Licencia
 
-MIT License
+Este proyecto se distribuye bajo licencia **MIT**.
