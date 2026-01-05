@@ -279,13 +279,13 @@ class MainWindow(QMainWindow):
         self.tol_spin.setValue(3.0)
         vlayout.addWidget(self.tol_spin, 0, 1)
 
-        vlayout.addWidget(QLabel("paper_check:"), 0, 2)
+        vlayout.addWidget(QLabel("Modo de validación:"), 0, 2)
         self.paper_check_combo = QComboBox()
         self.paper_check_combo.addItems(["warn", "strict"])
         self.paper_check_combo.setCurrentText("warn")
         vlayout.addWidget(self.paper_check_combo, 0, 3)
 
-        vlayout.addWidget(QLabel("paper_dim_mode:"), 1, 0)
+        vlayout.addWidget(QLabel("Criterio de dimensiones:"), 1, 0)
         self.paper_dim_mode_combo = QComboBox()
         self.paper_dim_mode_combo.addItems(["visible", "mediabox"])
         self.paper_dim_mode_combo.setCurrentText("visible")
