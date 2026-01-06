@@ -9,18 +9,10 @@ from flask import Flask, render_template, request, send_file, redirect, url_for,
 
 import fitz  # PyMuPDF
 
-# -------------------------
-# Paths (según tu estructura)
-# -------------------------
-# app.py está en: src/insert-qr-web/app.py
-# insert_qr_pdf.py y config.json están en: src/
 SRC_DIR = Path(__file__).resolve().parents[1]   # .../src
 BACKEND_PATH = SRC_DIR / "insert_qr_pdf.py"
 CONFIG_PATH = SRC_DIR / "config.json"
 
-# -------------------------
-# Import dinámico del backend (insert_qr_pdf.py)
-# -------------------------
 import importlib.util
 spec = importlib.util.spec_from_file_location("insert_qr_pdf", str(BACKEND_PATH))
 insert_qr_pdf = importlib.util.module_from_spec(spec)
@@ -43,13 +35,11 @@ def load_config(path: Path) -> dict:
 
 app = Flask(
     __name__,
-    template_folder="template",  # tu carpeta se llama "template"
-    static_folder=None
+    template_folder="template",
+    static_folder="static",        # ✅ ahora existe
+    static_url_path="/static"      # ✅ URL de estáticos
 )
 
-# -------------------------
-# Storage
-# -------------------------
 BASE_DIR = Path(__file__).resolve().parent
 STORAGE_DIR = BASE_DIR / "storage"
 UPLOADS_DIR = STORAGE_DIR / "uploads"
@@ -59,12 +49,9 @@ PREVIEWS_DIR = STORAGE_DIR / "previews"
 for d in (STORAGE_DIR, UPLOADS_DIR, OUTPUTS_DIR, PREVIEWS_DIR):
     d.mkdir(parents=True, exist_ok=True)
 
-# -------------------------
-# Config defaults
-# -------------------------
 CONFIG = load_config(CONFIG_PATH)
-DEFAULTS = CONFIG.get("defaults", {})       # :contentReference[oaicite:0]{index=0}
-VALIDATION = CONFIG.get("validation", {})   # :contentReference[oaicite:1]{index=1}
+DEFAULTS = CONFIG.get("defaults", {})
+VALIDATION = CONFIG.get("validation", {})
 
 
 def safe_int(x, default=1):
@@ -97,9 +84,6 @@ def get_page_visible_size_pt(pdf_path: Path, page_1based: int) -> tuple[float, f
 
 
 def render_preview_png(pdf_path: Path, token: str, page_1based: int, base_zoom: float = 2.0) -> Path:
-    """
-    Renderiza la página a PNG (cacheado).
-    """
     out_path = PREVIEWS_DIR / f"{token}_p{page_1based}_z{base_zoom:.2f}.png"
     if out_path.exists():
         return out_path
@@ -154,7 +138,6 @@ def upload():
     pdf_path = UPLOADS_DIR / f"{token}.pdf"
     f.save(str(pdf_path))
 
-    n_pages = get_pdf_page_count(pdf_path)
     return redirect(url_for("editor", token=token))
 
 
@@ -194,7 +177,6 @@ def preview(token, page):
     pdf_path = UPLOADS_DIR / f"{token}.pdf"
     if not pdf_path.exists():
         abort(404)
-
     png_path = render_preview_png(pdf_path, token=token, page_1based=page, base_zoom=2.0)
     return send_file(str(png_path), mimetype="image/png", as_attachment=False)
 
@@ -204,7 +186,6 @@ def pageinfo(token, page):
     pdf_path = UPLOADS_DIR / f"{token}.pdf"
     if not pdf_path.exists():
         abort(404)
-
     w_pt, h_pt = get_page_visible_size_pt(pdf_path, page)
     return jsonify({"page": page, "width_pt": w_pt, "height_pt": h_pt})
 
@@ -221,7 +202,6 @@ def apply(token):
 
     page = safe_int(request.form.get("page"), 1)
 
-    # Recibimos coordenadas VISUALES (arriba-izquierda)
     x = safe_float(request.form.get("x"), DEFAULTS.get("x", 2.0))
     y = safe_float(request.form.get("y"), DEFAULTS.get("y", 3.0))
     unit = (request.form.get("unit") or DEFAULTS.get("unit", "cm")).strip().lower()
@@ -229,13 +209,11 @@ def apply(token):
     size = safe_float(request.form.get("size"), DEFAULTS.get("size", 4.0))
     size_unit = (request.form.get("size_unit") or DEFAULTS.get("size_unit", "cm")).strip().lower()
 
-    # Validación desde UI/config
     tol_pt = safe_float(request.form.get("tol_pt"), VALIDATION.get("tol_pt", 3.0))
     paper_check = (request.form.get("paper_check") or VALIDATION.get("paper_check", "warn")).strip().lower()
     paper_dim_mode = (request.form.get("paper_dim_mode") or VALIDATION.get("paper_dim_mode", "visible")).strip().lower()
     check_all_pages = bool(request.form.get("check_all_pages") == "on")
 
-    # Convertir visual -> PDF
     page_w_pt, page_h_pt = get_page_visible_size_pt(pdf_path, page)
     x_pt = to_points(x, unit)
     y_top_pt = to_points(y, unit)

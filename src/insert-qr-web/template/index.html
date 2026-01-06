@@ -4,57 +4,10 @@
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width,initial-scale=1" />
   <title>Insertar QR en PDF (Web)</title>
-  <style>
-    body { font-family: system-ui, Arial, sans-serif; margin: 16px; }
-    .grid { display: grid; grid-template-columns: 420px 1fr; gap: 16px; align-items: start; }
-    .card { border: 1px solid #ddd; border-radius: 10px; padding: 12px; }
-    label { display:block; font-size: 12px; color:#333; margin-top: 10px; }
-    input, select { width: 100%; padding: 8px; margin-top: 4px; }
-    .row { display:flex; gap:10px; }
-    .row > div { flex:1; }
-    button { padding: 10px 12px; cursor: pointer; }
-    .muted { color:#666; font-size: 12px; }
-
-    .previewWrap { border: 1px solid #ddd; border-radius: 10px; padding: 12px; }
-    .toolbar { display:flex; gap: 8px; align-items:center; margin-bottom: 10px; }
-
-    .viewerOuter { overflow: auto; border: 1px solid #eee; border-radius: 10px; background: #fafafa; padding: 10px; }
-
-    /* Importante: viewer se escala, pero internamente maneja coords BASE */
-    .viewer {
-      position: relative;
-      transform-origin: top left;
-      display: inline-block;
-    }
-
-    #pageImg { display:block; user-select:none; -webkit-user-drag:none; }
-
-    /* Overlay en coords BASE (sin zoom). */
-    #qrOverlay {
-      position:absolute;
-      left: 40px;
-      top: 40px;
-      width: 120px;
-      height: 120px;
-      border: 2px solid red;
-      box-sizing: border-box;
-      cursor: move;
-      background: rgba(255,255,255,0.0);
-    }
-
-    #qrOverlay .badge {
-      position:absolute;
-      top:-22px; left:0;
-      background: rgba(255,0,0,0.9);
-      color:white; font-size:11px;
-      padding: 2px 6px;
-      border-radius: 6px;
-      user-select:none;
-    }
-  </style>
+  <link rel="stylesheet" href="{{ url_for('static', filename='styles.css') }}">
 </head>
 <body>
-  <h2>Insertar QR en PDF (Flask)</h2>
+  <h2>Insertar QR en PDF</h2>
   <p class="muted">
     {{ "Config cargado desde: " + config_path if has_config else "No se detectó config.json; se usan valores por defecto." }}
   </p>
@@ -193,11 +146,9 @@
     const zoomLabel = document.getElementById("zoomLabel");
     let zoom = 1.0;
 
-    // Estado de página (visible pt) para mapear px <-> pt
     let pageWpt = 0;
     let pageHpt = 0;
 
-    // Conversion helpers (pt <-> unit)
     function ptToUnit(pt, unit) {
       unit = unit.toLowerCase();
       if (unit === "pt") return pt;
@@ -220,7 +171,6 @@
       pageImg.src = `/preview/${token}/${p}?t=${Date.now()}`;
       await pageImg.decode().catch(()=>{});
 
-      // Importante: fijar tamaño base = natural (coords base estables)
       pageImg.style.width = pageImg.naturalWidth + "px";
       pageImg.style.height = pageImg.naturalHeight + "px";
 
@@ -233,9 +183,8 @@
       applyInputsToOverlay();
     }
 
-    // Inputs -> overlay (en px BASE)
     function applyInputsToOverlay() {
-      if (!pageImg.naturalWidth || !pageImg.naturalHeight || !pageWpt || !pageHpt) return;
+      if (!pageImg.naturalWidth || !pageWpt || !pageHpt) return;
 
       const x = parseFloat(xInput.value || "0");
       const y = parseFloat(yInput.value || "0");
@@ -248,11 +197,10 @@
       const sizePt = unitToPt(s, su);
 
       const sx = pageImg.naturalWidth / pageWpt;
-      const sy = pageImg.naturalHeight / pageHpt;
 
       const leftPx = xPt * sx;
-      const topPx  = yPt * sy;
-      const sizePx = sizePt * sx; // usamos sx para el lado
+      const topPx  = yPt * (pageImg.naturalHeight / pageHpt);
+      const sizePx = sizePt * sx;
 
       overlay.style.left = `${leftPx}px`;
       overlay.style.top  = `${topPx}px`;
@@ -260,13 +208,12 @@
       overlay.style.height = `${sizePx}px`;
     }
 
-    // Overlay -> inputs (leer coords BASE sin afectar por zoom)
     function applyOverlayToInputs() {
-      if (!pageImg.naturalWidth || !pageImg.naturalHeight || !pageWpt || !pageHpt) return;
+      if (!pageImg.naturalWidth || !pageWpt || !pageHpt) return;
 
-      const leftPx = overlay.offsetLeft;   // BASE
-      const topPx  = overlay.offsetTop;    // BASE
-      const wPx    = overlay.offsetWidth;  // BASE
+      const leftPx = overlay.offsetLeft;
+      const topPx  = overlay.offsetTop;
+      const wPx    = overlay.offsetWidth;
 
       const xPt = leftPx * (pageWpt / pageImg.naturalWidth);
       const yPt = topPx  * (pageHpt / pageImg.naturalHeight);
@@ -280,7 +227,6 @@
       sizeInput.value = ptToUnit(sizePt, su).toFixed(3);
     }
 
-    // Drag overlay (coords BASE, compensando zoom)
     let dragging = false;
     let dragOffsetX = 0;
     let dragOffsetY = 0;
@@ -288,11 +234,8 @@
     overlay.addEventListener("mousedown", (e) => {
       dragging = true;
       const r = overlay.getBoundingClientRect();
-
-      // offset en coords BASE
       dragOffsetX = (e.clientX - r.left) / zoom;
       dragOffsetY = (e.clientY - r.top) / zoom;
-
       e.preventDefault();
     });
 
@@ -303,15 +246,13 @@
     });
 
     document.addEventListener("mousemove", (e) => {
-      // Cursor coords (en base a imagen, independiente de zoom)
+      // cursor info
       if (pageImg.naturalWidth && pageWpt && pageHpt) {
         const imgRect = pageImg.getBoundingClientRect();
         const inside = e.clientX >= imgRect.left && e.clientX <= imgRect.right &&
                        e.clientY >= imgRect.top  && e.clientY <= imgRect.bottom;
 
         if (inside) {
-          // Convertir cursor a px BASE:
-          // (distancia en pantalla / zoom) porque imgRect ya está escalado
           const pxBase = (e.clientX - imgRect.left) / zoom;
           const pyBase = (e.clientY - imgRect.top)  / zoom;
 
@@ -329,7 +270,6 @@
 
       const viewerRect = viewer.getBoundingClientRect();
 
-      // mouse -> coords BASE del viewer
       let leftBase = (e.clientX - viewerRect.left) / zoom - dragOffsetX;
       let topBase  = (e.clientY - viewerRect.top)  / zoom - dragOffsetY;
 
@@ -346,7 +286,6 @@
       overlay.style.top  = `${topBase}px`;
     });
 
-    // Zoom (solo escala viewer)
     function setZoom(z) {
       zoom = Math.max(0.25, Math.min(4.0, z));
       viewer.style.transform = `scale(${zoom})`;
@@ -360,7 +299,6 @@
     pageInput.addEventListener("change", loadPage);
     [xInput,yInput,unitSel,sizeInput,sizeUnitSel].forEach(el => el.addEventListener("input", applyInputsToOverlay));
 
-    // Init
     setZoom(1.0);
     loadPage();
   </script>

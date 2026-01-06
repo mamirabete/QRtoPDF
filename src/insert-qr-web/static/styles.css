@@ -1,0 +1,129 @@
+/* Base */
+body {
+  font-family: system-ui, Arial, sans-serif;
+  margin: 16px;
+}
+
+label {
+  display: block;
+  font-size: 12px;
+  color: #333;
+  margin-top: 10px;
+}
+
+input, select {
+  width: 100%;
+  padding: 8px;
+  margin-top: 4px;
+}
+
+button {
+  padding: 10px 12px;
+  cursor: pointer;
+}
+
+hr {
+  border: none;
+  border-top: 1px solid #e6e6e6;
+  margin: 14px 0;
+}
+
+.muted {
+  color: #666;
+  font-size: 12px;
+}
+
+/* Layout */
+.grid {
+  display: grid;
+  grid-template-columns: 420px 1fr;
+  gap: 16px;
+  align-items: start;
+}
+
+.card {
+  border: 1px solid #ddd;
+  border-radius: 10px;
+  padding: 12px;
+}
+
+.row {
+  display: flex;
+  gap: 10px;
+}
+
+.row > div {
+  flex: 1;
+}
+
+/* Preview */
+.previewWrap {
+  border: 1px solid #ddd;
+  border-radius: 10px;
+  padding: 12px;
+}
+
+.toolbar {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  margin-bottom: 10px;
+}
+
+.viewerOuter {
+  overflow: auto;
+  border: 1px solid #eee;
+  border-radius: 10px;
+  background: #fafafa;
+  padding: 10px;
+}
+
+.viewer {
+  position: relative;
+  transform-origin: top left;
+  display: inline-block;
+}
+
+#pageImg {
+  display: block;
+  user-select: none;
+  -webkit-user-drag: none;
+}
+
+/* Overlay QR */
+#qrOverlay {
+  position: absolute;
+  left: 40px;
+  top: 40px;
+  width: 120px;
+  height: 120px;
+  border: 2px solid red;
+  box-sizing: border-box;
+  cursor: move;
+  background: rgba(255, 255, 255, 0.0);
+}
+
+#qrOverlay .badge {
+  position: absolute;
+  top: -22px;
+  left: 0;
+  background: rgba(255, 0, 0, 0.9);
+  color: white;
+  font-size: 11px;
+  padding: 2px 6px;
+  border-radius: 6px;
+  user-select: none;
+}
+
+/* Result page */
+pre {
+  background: #0b1020;
+  color: #d6e3ff;
+  padding: 12px;
+  border-radius: 10px;
+  overflow: auto;
+}
+
+a {
+  word-break: break-all;
+}

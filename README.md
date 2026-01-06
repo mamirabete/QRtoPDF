@@ -298,6 +298,129 @@ Mediante el GUI puede posicionar el QR visualmente, verificar el resultado y gen
     * Mensajes informativos
     * Errores de ejecución
 
+## Cliente WEB: `insert-qr-web`
+
+Esta versión incorpora una **interfaz web** basada en **Flask** para insertar un código QR en un PDF existente, reutilizando el backend del proyecto (`insert_qr_pdf.py`) y los **valores por defecto** definidos en `config.json`.
+
+### Objetivo
+
+El cliente WEB permite:
+
+- Subir un PDF desde el navegador.
+- Seleccionar la página destino.
+- **Ubicar el QR visualmente** sobre una previsualización (arrastrando un rectángulo rojo).
+- Ajustar el **zoom** de la previsualización (+ / -) sin perder precisión en coordenadas.
+- Generar y descargar el PDF resultante con el QR insertado.
+
+---
+
+### Estructura de directorios
+
+Se asume la siguiente estructura (según la organización del proyecto):
+
+```text
+src/
+├── config.json
+├── insert_qr_pdf.py
+└── insert-qr-web/
+    ├── app.py
+    ├── template/
+    │   ├── index.html
+    │   └── result.html
+    ├── static/
+    │   └── styles.css
+    └── storage/
+        ├── uploads/    # PDFs subidos (temporales)
+        ├── outputs/    # PDFs generados
+        └── previews/   # PNGs de previsualización (cache)
+```
+
+> Nota: el directorio `storage/` se crea automáticamente al iniciar la aplicación.
+
+---
+
+### Ejecución
+
+Desde el directorio `src/insert-qr-web/`:
+
+```bash
+python app.py
+```
+
+Por defecto se inicia en:
+
+- `http://127.0.0.1:5000/`
+
+---
+
+### Uso (paso a paso)
+
+1) Abrir el navegador en `http://127.0.0.1:5000/`.
+
+2) **Subir PDF**:
+   - Seleccionar un archivo `.pdf` y presionar “Subir y abrir editor”.
+
+3) **Seleccionar URL y página**:
+   - Ingresar la URL para el QR.
+   - Indicar la página donde se insertará.
+
+4) **Ubicar el QR visualmente**:
+   - Arrastrar el rectángulo rojo “QR” sobre la previsualización.
+   - Los campos **X / Y** se actualizan automáticamente en la unidad seleccionada (cm/mm/pt).
+
+5) **Ajustar zoom**:
+   - Usar los botones **+ / -** para aumentar/disminuir.
+   - El sistema conserva coordenadas correctas al mover el rectángulo con zoom aplicado.
+
+6) **Generar PDF**:
+   - Presionar “Insertar QR y generar PDF”.
+   - Se mostrará la página de resultado con el enlace de descarga.
+
+---
+
+### Cómo se interpretan las coordenadas
+
+- En el cliente WEB, **X/Y se interpretan como coordenadas visuales** con origen **arriba-izquierda** (coinciden con lo que se ve en pantalla).
+- Antes de llamar al backend, el servidor convierte a coordenadas PDF (origen abajo-izquierda) usando el alto de página en puntos:
+  - `y_pdf = page_height_pt - y_top_pt - qr_size_pt`
+
+Esto garantiza consistencia entre lo que se ve en la previsualización y el resultado final.
+
+---
+
+### Endpoints principales (referencia técnica)
+
+- `GET /` : pantalla inicial (subida de PDF).
+- `POST /upload` : recibe el PDF y redirige al editor.
+- `GET /editor/<token>` : editor con previsualización.
+- `GET /preview/<token>/<page>` : PNG de la página.
+- `GET /pageinfo/<token>/<page>` : tamaño visible en puntos (pt).
+- `POST /apply/<token>` : inserta el QR y produce el PDF final.
+- `GET /download/<token>` : descarga del PDF generado.
+
+---
+
+### Solución de problemas
+
+- **No se ve la previsualización**:
+  - Verificar instalación de `PyMuPDF` (import `fitz`).
+- **Error 500 al generar PDF**:
+  - Revisar consola del servidor Flask (traceback).
+  - Confirmar que `insert_qr_pdf.py` y `config.json` estén en `src/` (un nivel superior).
+- **Las coordenadas no coinciden**:
+  - Confirmar que el zoom se aplica solo al contenedor (`transform: scale`) y que el overlay se mueve en coordenadas base.
+  - Evitar modificar manualmente estilos del viewer sin ajustar el mapeo.
+
+---
+
+### Seguridad y limpieza (recomendación)
+
+En entornos reales se recomienda:
+
+- Limitar tamaño de archivos subidos.
+- Limpiar periódicamente `storage/uploads`, `storage/previews` y `storage/outputs`.
+- Ejecutar detrás de un servidor WSGI (Gunicorn/Waitress) en producción.
+
 ---
 
 ## Licencia

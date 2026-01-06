@@ -1,8 +1,8 @@
 {
   "defaults": {
     "page": 1,
-    "x": 2.0,
-    "y": 3.0,
+    "x": 13.0,
+    "y": 23.0,
     "unit": "cm",
     "size": 4.0,
     "size_unit": "cm"
