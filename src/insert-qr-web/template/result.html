@@ -1,0 +1,33 @@
+<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Resultado</title>
+  <style>
+    body { font-family: system-ui, Arial, sans-serif; margin: 16px; }
+    .card { border: 1px solid #ddd; border-radius: 10px; padding: 12px; }
+    pre { background:#0b1020; color:#d6e3ff; padding: 12px; border-radius: 10px; overflow:auto; }
+    a { word-break: break-all; }
+  </style>
+</head>
+<body>
+  <h2>Resultado</h2>
+
+  <div class="card">
+    {% if ok %}
+      <p><strong>OK:</strong> PDF generado correctamente.</p>
+      <p>
+        <a href="{{output_url}}">Descargar PDF con QR</a>
+      </p>
+    {% else %}
+      <p><strong>Error:</strong> {{error}}</p>
+    {% endif %}
+  </div>
+
+  <h3>Log</h3>
+  <pre>{{log}}</pre>
+
+  <p><a href="/editor/{{token}}">Volver al editor</a></p>
+</body>
+</html>
