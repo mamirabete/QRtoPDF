@@ -7,7 +7,7 @@
   <link rel="stylesheet" href="{{ url_for('static', filename='styles.css') }}">
 </head>
 <body>
-  <h2>Insertar QR en PDF (Flask)</h2>
+  <h2>Insertar QR en PDF</h2>
 
   <p class="muted">
     {{ "Config cargado desde: " + config_path if has_config else "No se detectó config.json; se usan valores por defecto." }}
@@ -89,17 +89,17 @@
 
           <hr />
 
-          <h4>Validación (A4/Carta)</h4>
+          <h4>Validación</h4>
           <label>Tolerancia (pt)</label>
           <input name="tol_pt" id="tol_pt" type="number" step="0.01" value="{{validation.tol_pt}}" />
 
-          <label>paper_check</label>
+          <label>Modo de validación</label>
           <select name="paper_check" id="paper_check">
             <option value="warn" {{ "selected" if validation.paper_check=="warn" else "" }}>warn</option>
             <option value="strict" {{ "selected" if validation.paper_check=="strict" else "" }}>strict</option>
           </select>
 
-          <label>paper_dim_mode</label>
+          <label>Criterio de dimensiones</label>
           <select name="paper_dim_mode" id="paper_dim_mode">
             <option value="visible" {{ "selected" if validation.paper_dim_mode=="visible" else "" }}>visible</option>
             <option value="mediabox" {{ "selected" if validation.paper_dim_mode=="mediabox" else "" }}>mediabox</option>

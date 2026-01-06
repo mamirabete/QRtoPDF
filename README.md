@@ -210,6 +210,12 @@ Ejemplo de estructura:
 | Clave              | Tipo   | Descripción |
 |-------------------|--------|-------------|
 | `max_upload_mb`   | int    | Tamaño máximo permitido en MB para el PDF subido. |
+| `cleanup_enabled` | bool    | Activa/desactiva la limpieza. |
+| `cleanup_interval_seconds`| int    | Cada cuánto corre el limpiador (ej. 900 = 15 min). |
+| `cleanup_max_age_seconds` | int    | Borra archivos con antigüedad mayor a ese valor (ej. 86400 = 24 hs). |
+| `admin_key`   | string | Clave simple para proteger /admin/cleanup. Agregar "VALOR" con una clave real. Para deshabilitar protección: vacío "" (no recomendado). |
+| `admin_allowed_ips`   | array[string] | Lista blanca de IPs permitidas (por defecto: localhost IPv4 e IPv6). |
+| `admin_trust_proxy_headers`   | bool | Si es true, se toma IP desde X-Forwarded-For (solo si estás detrás de proxy confiable). |
 
 ---
 
@@ -426,6 +432,7 @@ Esto garantiza consistencia entre lo que se ve en la previsualización y el resu
 - `GET /pageinfo/<token>/<page>` : tamaño visible en puntos (pt).
 - `POST /apply/<token>` : inserta el QR y produce el PDF final.
 - `GET /download/<token>` : descarga del PDF generado.
+- `GET /admin/cleanup?key=VALOR` : borra archivos. Devuelve JSON con las estadísticas de archivos borrados y mantenidos.
 
 ---
 
@@ -446,7 +453,6 @@ Esto garantiza consistencia entre lo que se ve en la previsualización y el resu
 
 En entornos reales se recomienda:
 
-- Limitar tamaño de archivos subidos.
 - Limpiar periódicamente `storage/uploads`, `storage/previews` y `storage/outputs`.
 - Ejecutar detrás de un servidor WSGI (Gunicorn/Waitress) en producción.
 

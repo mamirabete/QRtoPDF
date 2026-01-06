@@ -1,8 +1,8 @@
 {
   "defaults": {
     "page": 1,
-    "x": 13.0,
-    "y": 23.0,
+    "x": 2.0,
+    "y": 3.0,
     "unit": "cm",
     "size": 4.0,
     "size_unit": "cm"
@@ -10,10 +10,18 @@
   "validation": {
     "tol_pt": 3.0,
     "paper_check": "warn",
-    "check_all_pages": false,
-    "paper_dim_mode": "visible"
+    "paper_dim_mode": "visible",
+    "check_all_pages": false
   },
-  "web_client":{
-    "max_upload_mb": 20
+  "web_client": {
+    "max_upload_mb": 20,
+
+    "cleanup_enabled": true,
+    "cleanup_interval_seconds": 900,
+    "cleanup_max_age_seconds": 86400,
+
+    "admin_key": "695c877a-8a68-8328-bee7-5a1433d511a8",
+    "admin_allowed_ips": ["127.0.0.1", "::1"],
+    "admin_trust_proxy_headers": false
   }
 }
