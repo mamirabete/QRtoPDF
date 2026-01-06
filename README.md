@@ -23,8 +23,9 @@ El sistema ofrece dos modos de trabajo complementarios:
 
 | Archivo | Descripción |
 |------|------------|
-| `insert_qr_pdf.py` | Script principal de inserción de QR en PDFs (CLI / backend). |
-| `gui_insert_qr.py` | Cliente gráfico PySide6/Qt con previsualización y drag & drop. |
+| `.\src\insert_qr_pdf.py` | Script principal de inserción de QR en PDFs (CLI / backend). |
+| `.\src\gui_insert_qr.py` | Cliente gráfico PySide6/Qt con previsualización y drag & drop. |
+| `.\src\config.json` | Archivo de configuración con valores por defecto. |
 | `requirements.txt` | Dependencias del proyecto. |
 | `README.md` | Documentación del proyecto. |
 
@@ -92,7 +93,7 @@ pip install -r requirements.txt
 
 ---
 
-## Uso del script `insert_qr_pdf.py` (CLI)
+# Uso del script `insert_qr_pdf.py` (CLI)
 
 ### Ejemplo básico
 
@@ -100,9 +101,124 @@ pip install -r requirements.txt
 python insert_qr_pdf.py   --url "https://www.ejemplo.com"   --in-pdf "entrada.pdf"   --out-pdf "salida.pdf"   --page 1   --x 2 --y 3 --unit cm   --size 4 --size-unit cm
 ```
 
+## Uso del archivo de configuración (`config.json`)
+
+### Descripción
+
+El script `insert_qr_pdf.py` admite la definición de **valores por defecto** mediante un archivo de configuración en formato **JSON**, lo que permite ejecutar el programa sin necesidad de especificar todos los parámetros por línea de comandos.
+
+El orden de prioridad de los valores es el siguiente:
+
+1. **Argumentos por línea de comandos (CLI)**
+2. **Archivo de configuración (`config.json`)**
+3. **Valores por defecto internos (hard-defaults)**
+
+Cualquier valor indicado por CLI **sobrescribe** al definido en el archivo de configuración.
+
 ---
 
-## Cliente gráfico `gui_insert_qr.py` (GUI)
+### Ubicación y uso del archivo de configuración
+
+Por defecto, el script busca un archivo llamado:
+
+```
+config.json
+```
+
+en el mismo directorio desde el cual se ejecuta el comando.
+
+También es posible indicar explícitamente la ruta al archivo de configuración utilizando el parámetro:
+
+```bash
+--config ruta/al/config.json
+```
+
+Ejemplo:
+
+```bash
+python insert_qr_pdf.py   --config config.json   --url "https://www.ejemplo.com"   --in-pdf "entrada.pdf"   --out-pdf "salida.pdf"
+```
+
+---
+
+### Estructura del archivo `config.json`
+
+Ejemplo de estructura:
+
+```json
+{
+  "defaults": {
+    "page": 1,
+    "x": 2.0,
+    "y": 3.0,
+    "unit": "cm",
+    "size": 4.0,
+    "size_unit": "cm"
+  },
+  "validation": {
+    "tol_pt": 3.0,
+    "paper_check": "warn",
+    "check_all_pages": false,
+    "paper_dim_mode": "visible"
+  }
+}
+```
+
+---
+
+### Parámetros configurables – Sección `defaults`
+
+| Clave        | Tipo   | Descripción |
+|-------------|--------|-------------|
+| `page`      | int    | Página destino del QR (1 = primera página). |
+| `x`         | float  | Coordenada X del QR. |
+| `y`         | float  | Coordenada Y del QR. |
+| `unit`      | string | Unidad para `x` e `y` (`cm`, `mm`, `pt`). |
+| `size`      | float  | Tamaño (lado) del código QR. |
+| `size_unit` | string | Unidad del tamaño del QR (`cm`, `mm`, `pt`). |
+
+---
+
+### Parámetros configurables – Sección `validation`
+
+| Clave              | Tipo   | Descripción |
+|-------------------|--------|-------------|
+| `tol_pt`          | float  | Tolerancia en puntos para comparar tamaños de página. |
+| `paper_check`     | string | `warn` (advierte) o `strict` (aborta si no es A4/Carta). |
+| `check_all_pages` | bool   | Si es `true`, valida todas las páginas del PDF. |
+| `paper_dim_mode`  | string | `visible` (considera rotación) o `mediabox`. |
+
+---
+
+### Ejecución utilizando solo el archivo de configuración
+
+```bash
+python insert_qr_pdf.py   --url "https://www.ejemplo.com"   --in-pdf "entrada.pdf"   --out-pdf "salida.pdf"
+```
+
+En este caso, los valores de **página, posición, unidad y tamaño del QR** se toman desde `config.json`.
+
+---
+
+### Ejecución con sobrescritura parcial por CLI
+
+```bash
+python insert_qr_pdf.py   --url "https://www.ejemplo.com"   --in-pdf "entrada.pdf"   --out-pdf "salida.pdf"   --page 2   --x 1.5   --y 1.5
+```
+
+Los parámetros indicados por CLI sobrescriben los definidos en el archivo de configuración.
+
+---
+
+### Consideraciones finales
+
+- El archivo `config.json` es **opcional**.
+- Si no existe, el script utiliza valores por defecto internos.
+- Este mecanismo facilita la automatización, la ejecución en lote y la integración en pipelines.
+
+---
+
+# Cliente gráfico `gui_insert_qr.py` (GUI)
 
 ### Descripción
 

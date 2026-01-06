@@ -1,7 +1,9 @@
 import os
 import sys
 import io
+import json
 import contextlib
+from pathlib import Path
 
 from PySide6.QtCore import Qt, QRectF, QPointF, Signal
 from PySide6.QtGui import QPixmap, QImage, QPen
@@ -12,6 +14,7 @@ from PySide6.QtWidgets import (
     QGraphicsView, QGraphicsScene, QGraphicsPixmapItem, QGraphicsRectItem
 )
 
+# Backend de inserción
 from insert_qr_pdf import InsertQRParams, insert_qr_into_pdf, to_points
 
 try:
@@ -21,7 +24,49 @@ except Exception:
 
 
 # ----------------------------
-# Inversa de to_points (para mostrar/actualizar campos)
+# Utilidades config.json
+# ----------------------------
+def resolve_default_config_path() -> Path:
+    """
+    Estrategia:
+    1) config.json en el directorio de ejecución (cwd)
+    2) config.json en el mismo directorio del script
+    3) subir algunos niveles (por si está en la raíz del repo)
+    """
+    candidates = [
+        Path.cwd() / "config.json",
+        Path(__file__).resolve().parent / "config.json",
+    ]
+
+    # Probar subir niveles hasta 5 (repo root típico)
+    p = Path(__file__).resolve()
+    for i in range(1, 6):
+        try:
+            candidates.append(p.parents[i] / "config.json")
+        except IndexError:
+            break
+
+    for c in candidates:
+        if c.exists() and c.is_file():
+            return c
+
+    # default: cwd/config.json aunque no exista
+    return Path.cwd() / "config.json"
+
+
+def load_config(config_path: Path) -> dict:
+    if not config_path.exists():
+        return {}
+    try:
+        with config_path.open("r", encoding="utf-8") as f:
+            return json.load(f)
+    except Exception as e:
+        print(f"[ADVERTENCIA] No se pudo leer config.json ({config_path}): {e}")
+        return {}
+
+
+# ----------------------------
+# Unidades: inversa de to_points (para mostrar/actualizar campos)
 # ----------------------------
 PT_PER_INCH = 72.0
 MM_PER_INCH = 25.4
@@ -38,9 +83,13 @@ def from_points(value_pt: float, unit: str) -> float:
     raise ValueError(f"Unidad no soportada: {unit}")
 
 
+# ----------------------------
+# Items / View para Preview
+# ----------------------------
 class DraggableRectItem(QGraphicsRectItem):
     """
     Rectángulo arrastrable que llama a un callback cuando cambia su posición.
+    No usa Signal porque QGraphicsRectItem no es QObject en PySide6.
     """
     def __init__(self, rect: QRectF, on_moved=None):
         super().__init__(rect)
@@ -55,10 +104,14 @@ class DraggableRectItem(QGraphicsRectItem):
         if change == QGraphicsRectItem.ItemPositionHasChanged and callable(self._on_moved):
             r = self.rect()
             rect_scene = QRectF(self.pos().x(), self.pos().y(), r.width(), r.height())
-            self._on_moved(rect_scene)  # callback
+            self._on_moved(rect_scene)
         return super().itemChange(change, value)
 
+
 class PreviewGraphicsView(QGraphicsView):
+    """
+    View con tracking del mouse para mostrar coordenadas del cursor en escena.
+    """
     mouseMoved = Signal(QPointF)
 
     def __init__(self, parent=None):
@@ -66,7 +119,7 @@ class PreviewGraphicsView(QGraphicsView):
         self.setMouseTracking(True)
 
     def mouseMoveEvent(self, event):
-        # Qt6: usar position() en lugar de pos()
+        # Qt6: usar position() (QPointF) en lugar de pos() (deprecated)
         sp = self.mapToScene(event.position().toPoint())
         self.mouseMoved.emit(sp)
         super().mouseMoveEvent(event)
@@ -79,8 +132,8 @@ class PdfPreviewWidget(QWidget):
     - overlay del QR arrastrable
     - coordenadas en vivo
     """
-    rectMoved = Signal(QRectF)     # rect en pixeles (escena)
-    mousePosChanged = Signal(QPointF)
+    rectMoved = Signal(QRectF)          # rect en pixeles (escena)
+    mousePosChanged = Signal(QPointF)  # pos en pixeles (escena)
 
     def __init__(self, parent=None):
         super().__init__(parent)
@@ -97,7 +150,7 @@ class PdfPreviewWidget(QWidget):
         self.refresh_btn = QPushButton("Actualizar vista")
 
         self.cursor_label = QLabel("Cursor: —")
-        self.cursor_label.setMinimumWidth(260)
+        self.cursor_label.setMinimumWidth(300)
 
         top = QHBoxLayout()
         top.addWidget(QLabel("Zoom:"))
@@ -139,7 +192,7 @@ class PdfPreviewWidget(QWidget):
 
             item = DraggableRectItem(
                 QRectF(0, 0, rect_scene.width(), rect_scene.height()),
-                on_moved=self.rectMoved.emit  # <-- el emit lo hace el widget (QObject)
+                on_moved=self.rectMoved.emit,  # emit desde widget (QObject)
             )
             item.setPen(pen)
             item.setPos(rect_scene.x(), rect_scene.y())
@@ -147,7 +200,6 @@ class PdfPreviewWidget(QWidget):
             self.scene.addItem(item)
             self._rect_item = item
         else:
-            # mantener tamaño, mover posición
             self._rect_item.setRect(QRectF(0, 0, rect_scene.width(), rect_scene.height()))
             self._rect_item.setPos(rect_scene.x(), rect_scene.y())
 
@@ -163,10 +215,17 @@ class PdfPreviewWidget(QWidget):
         self.view.scale(zoom, zoom)
 
 
+# ----------------------------
+# Main GUI
+# ----------------------------
 class MainWindow(QMainWindow):
     def __init__(self):
         super().__init__()
         self.setWindowTitle("Insertar QR en PDF (DGC - AREF)")
+
+        # Config
+        self.config_path = resolve_default_config_path()
+        self.config = load_config(self.config_path)
 
         root = QWidget()
         self.setCentralWidget(root)
@@ -175,7 +234,8 @@ class MainWindow(QMainWindow):
         layout.setColumnStretch(1, 1)
         layout.setColumnStretch(3, 2)
 
-        self._preview_base_zoom = 2.0  # debe coincidir con render (para mapear pt<->px)
+        # Preview state
+        self._preview_base_zoom = 2.0
         self._page_w_pt_visible = None
         self._page_h_pt_visible = None
         self._pix_w = None
@@ -336,6 +396,57 @@ class MainWindow(QMainWindow):
             self.preview_btn.setEnabled(False)
             self.preview.refresh_btn.setEnabled(False)
 
+        # ✅ Aplicar defaults desde config.json
+        self.apply_defaults_from_config()
+
+        # Log de config
+        if self.config:
+            self.append_log(f"[INFO] Configuración cargada desde: {self.config_path.resolve()}")
+        else:
+            self.append_log(f"[INFO] No se encontró/leyó config.json. Se usan valores por defecto del GUI.")
+            self.append_log(f"[INFO] Ruta buscada (principal): {self.config_path.resolve()}")
+
+    # -------------------------
+    # Config defaults
+    # -------------------------
+    def apply_defaults_from_config(self):
+        defaults = self.config.get("defaults", {})
+        validation = self.config.get("validation", {})
+
+        # Defaults (según tu config.json)
+        if "page" in defaults:
+            self.page_spin.setValue(int(defaults.get("page", self.page_spin.value())))
+        if "x" in defaults:
+            self.x_spin.setValue(float(defaults.get("x", self.x_spin.value())))
+        if "y" in defaults:
+            self.y_spin.setValue(float(defaults.get("y", self.y_spin.value())))
+
+        unit = defaults.get("unit")
+        if unit in ("cm", "mm", "pt"):
+            self.unit_combo.setCurrentText(unit)
+
+        if "size" in defaults:
+            self.size_spin.setValue(float(defaults.get("size", self.size_spin.value())))
+
+        size_unit = defaults.get("size_unit")
+        if size_unit in ("cm", "mm", "pt"):
+            self.size_unit_combo.setCurrentText(size_unit)
+
+        # Validation
+        if "tol_pt" in validation:
+            self.tol_spin.setValue(float(validation.get("tol_pt", self.tol_spin.value())))
+
+        paper_check = validation.get("paper_check")
+        if paper_check in ("warn", "strict"):
+            self.paper_check_combo.setCurrentText(paper_check)
+
+        if "check_all_pages" in validation:
+            self.check_all_pages_chk.setChecked(bool(validation.get("check_all_pages", False)))
+
+        paper_dim_mode = validation.get("paper_dim_mode")
+        if paper_dim_mode in ("visible", "mediabox"):
+            self.paper_dim_mode_combo.setCurrentText(paper_dim_mode)
+
     # -------------------------
     # Helpers
     # -------------------------
@@ -433,7 +544,6 @@ class MainWindow(QMainWindow):
 
             doc.close()
 
-            # Dibujar rectángulo del QR según campos
             self._refresh_rect_only()
 
         except Exception as e:
@@ -443,9 +553,6 @@ class MainWindow(QMainWindow):
             self._pix_w = self._pix_h = None
 
     def _refresh_rect_only(self):
-        """
-        Actualiza el rectángulo rojo sin rerender de PDF.
-        """
         if self._page_w_pt_visible is None or self._page_h_pt_visible is None:
             return
         if self._pix_w is None or self._pix_h is None:
@@ -461,12 +568,12 @@ class MainWindow(QMainWindow):
             y_pt = to_points(float(self.y_spin.value()), self.unit_combo.currentText())
             size_pt = to_points(float(self.size_spin.value()), self.size_unit_combo.currentText())
 
-            # Para dibujar en preview (origen arriba-izquierda)
+            # Para pintar en preview (origen arriba-izquierda)
             if self.visual_coords_chk.isChecked():
                 x_vis_pt = x_pt
                 y_vis_pt = y_pt
             else:
-                # si el usuario usa coords PDF (abajo-izquierda), convertir a coords visuales para pintar
+                # coords PDF (abajo-izq) -> coords visual
                 x_vis_pt = x_pt
                 y_vis_pt = page_h_pt - y_pt - size_pt
 
@@ -493,10 +600,9 @@ class MainWindow(QMainWindow):
             self.preview.set_cursor_text("Cursor: —")
             return
 
-        x_px = scene_pos.x()
-        y_px = scene_pos.y()
+        x_px = float(scene_pos.x())
+        y_px = float(scene_pos.y())
 
-        # Clamp al área de la imagen
         x_px = max(0.0, min(float(self._pix_w), x_px))
         y_px = max(0.0, min(float(self._pix_h), y_px))
 
@@ -507,7 +613,6 @@ class MainWindow(QMainWindow):
         x_vis_pt = x_px * (page_w_pt / float(self._pix_w))
         y_vis_pt = y_px * (page_h_pt / float(self._pix_h))
 
-        # Convertir a la unidad elegida para mostrar
         unit = self.unit_combo.currentText()
         x_unit = from_points(x_vis_pt, unit)
         y_unit = from_points(y_vis_pt, unit)
@@ -518,32 +623,23 @@ class MainWindow(QMainWindow):
     # Drag: rect moved -> actualizar campos X/Y
     # -------------------------
     def on_rect_moved(self, rect_scene: QRectF):
-        """
-        rect_scene está en pixeles (escena), origen arriba-izquierda del preview.
-        Convertimos esa posición a pt (visual) y actualizamos los campos.
-        """
         if self._page_w_pt_visible is None or self._page_h_pt_visible is None:
             return
         if self._pix_w is None or self._pix_h is None:
             return
 
-        # Evitar loops: mover rect -> cambia spin -> refresh rect
         self._syncing_from_rect = True
         try:
             page_w_pt = float(self._page_w_pt_visible)
             page_h_pt = float(self._page_h_pt_visible)
 
-            # pix -> pt (visual)
-            x_vis_pt = rect_scene.x() * (page_w_pt / float(self._pix_w))
-            y_vis_pt = rect_scene.y() * (page_h_pt / float(self._pix_h))
+            x_vis_pt = float(rect_scene.x()) * (page_w_pt / float(self._pix_w))
+            y_vis_pt = float(rect_scene.y()) * (page_h_pt / float(self._pix_h))
 
-            # Si el usuario trabaja en visual, los campos X/Y representan visual
             if self.visual_coords_chk.isChecked():
                 x_field_pt = x_vis_pt
                 y_field_pt = y_vis_pt
             else:
-                # si los campos están en coords PDF (abajo-izq), convertir:
-                # y_pdf = page_h - y_visual - size
                 size_pt = to_points(float(self.size_spin.value()), self.size_unit_combo.currentText())
                 x_field_pt = x_vis_pt
                 y_field_pt = page_h_pt - y_vis_pt - size_pt
@@ -566,11 +662,10 @@ class MainWindow(QMainWindow):
         self.log_text.clear()
         params = self.make_params()
 
-        # Si el usuario ingresó coordenadas visuales, convertir a coordenadas PDF (abajo-izquierda)
+        # Si el usuario ingresó coords visuales, convertir a PDF (abajo-izq)
         if self.visual_coords_chk.isChecked():
             try:
                 if self._page_h_pt_visible is None:
-                    # intentar obtenerlo desde PyMuPDF
                     if fitz is not None:
                         doc = fitz.open(params.input_pdf)
                         page = doc.load_page(params.page_number - 1)
@@ -582,6 +677,7 @@ class MainWindow(QMainWindow):
                     x_pt = to_points(params.x_value, params.unit)
                     y_pt = to_points(params.y_value, params.unit)
                     size_pt = to_points(params.size_value, params.size_unit)
+
                     y_bottom_pt = page_h_pt - y_pt - size_pt
 
                     params.unit = "pt"

@@ -1,3 +1,6 @@
+import json
+import os
+
 import io
 import argparse
 from dataclasses import dataclass
@@ -6,6 +9,21 @@ import qrcode
 from pypdf import PdfReader, PdfWriter
 from reportlab.pdfgen import canvas
 from reportlab.lib.utils import ImageReader
+
+# ----------------------------
+# Configuración JSON
+# ----------------------------
+def load_config(path: str) -> dict:
+    if not path:
+        return {}
+    if not os.path.exists(path):
+        # Sin config: no es error, solo se continúa con hard-defaults
+        return {}
+    with open(path, "r", encoding="utf-8") as f:
+        return json.load(f)
+
+def pick(cli_value, cfg_value, hard_default):
+    return cli_value if cli_value is not None else (cfg_value if cfg_value is not None else hard_default)
 
 
 # ----------------------------
@@ -241,25 +259,30 @@ def parse_args():
     p.add_argument("--in-pdf", required=True, help="Ruta al PDF existente de entrada.")
     p.add_argument("--out-pdf", required=True, help="Ruta al PDF de salida.")
 
-    p.add_argument("--page", type=int, required=True, help="Página destino (1 = primera).")
+    # Archivo de configuración
+    p.add_argument("--config", default="config.json",
+            help="Ruta al archivo de configuración (JSON). Default: config.json")
+    
+    # Parámetros opcionales (pueden ser sobreescritos por config)
+    p.add_argument("--page", type=int, default=None, help="Página destino (1 = primera).")
+    
+    p.add_argument("--x", type=float, default=None, help="Coordenada X.")
+    p.add_argument("--y", type=float, default=None, help="Coordenada Y.")
+    p.add_argument("--unit", default=None, choices=["cm", "mm", "pt"],
+                help="Unidad para X e Y (cm, mm o pt).")
 
-    p.add_argument("--x", type=float, required=True, help="Coordenada X.")
-    p.add_argument("--y", type=float, required=True, help="Coordenada Y.")
-    p.add_argument("--unit", default="cm", choices=["cm", "mm", "pt"],
-                   help="Unidad para X e Y (cm, mm o pt).")
-
-    p.add_argument("--size", type=float, required=True, help="Tamaño (lado) del QR.")
-    p.add_argument("--size-unit", default="cm", choices=["cm", "mm", "pt"],
-                   help="Unidad del tamaño (cm, mm o pt).")
-
+    p.add_argument("--size", type=float, default=None, help="Tamaño (lado) del QR.")
+    p.add_argument("--size-unit", default=None, choices=["cm", "mm", "pt"],
+                help="Unidad del tamaño (cm, mm o pt).")
+    
     # Validación papel
-    p.add_argument("--tol-pt", type=float, default=3.0,
+    p.add_argument("--tol-pt", type=float, default=None,
                    help="Tolerancia en puntos para comparar tamaños (default: 3.0 pt).")
-    p.add_argument("--paper-check", choices=["warn", "strict"], default="warn",
+    p.add_argument("--paper-check", choices=["warn", "strict"], default=None,
                    help="warn: advierte y continúa. strict: aborta si no es A4/Carta.")
     p.add_argument("--check-all-pages", action="store_true",
                    help="Si se indica, valida todas las páginas; si no, solo la página destino.")
-    p.add_argument("--paper-dim-mode", choices=["visible", "mediabox"], default="visible",
+    p.add_argument("--paper-dim-mode", choices=["visible", "mediabox"], default=None,
                    help="visible: considera Rotate (swap w/h en 90/270). mediabox: usa mediabox tal cual.")
 
     return p.parse_args()
@@ -267,24 +290,56 @@ def parse_args():
 
 def main():
     a = parse_args()
+    cfg = load_config(a.config)
+
+    cfg_defaults = (cfg.get("defaults") or {})
+    cfg_validation = (cfg.get("validation") or {})
+
+    # Hard defaults (por si no hay ni CLI ni config)
+    hard_defaults = {
+        "page": 1,
+        "x": 2.0,
+        "y": 2.0,
+        "unit": "cm",
+        "size": 4.0,
+        "size_unit": "cm",
+        "tol_pt": 3.0,
+        "paper_check": "warn",
+        "check_all_pages": False,
+        "paper_dim_mode": "visible",
+    }
+
+    page = pick(a.page, cfg_defaults.get("page"), hard_defaults["page"])
+    x = pick(a.x, cfg_defaults.get("x"), hard_defaults["x"])
+    y = pick(a.y, cfg_defaults.get("y"), hard_defaults["y"])
+    unit = pick(a.unit, cfg_defaults.get("unit"), hard_defaults["unit"])
+    size = pick(a.size, cfg_defaults.get("size"), hard_defaults["size"])
+    size_unit = pick(a.size_unit, cfg_defaults.get("size_unit"), hard_defaults["size_unit"])
+
+    # (Opcional) también permitir defaults de validación por config
+    tol_pt = pick(getattr(a, "tol_pt", None), cfg_validation.get("tol_pt"), 3.0)
+    paper_check = pick(getattr(a, "paper_check", None), cfg_validation.get("paper_check"), "warn")
+    check_all_pages = pick(getattr(a, "check_all_pages", None), cfg_validation.get("check_all_pages"), False)
+    paper_dim_mode = pick(getattr(a, "paper_dim_mode", None), cfg_validation.get("paper_dim_mode"), "visible")
+
     params = InsertQRParams(
         input_pdf=a.in_pdf,
         output_pdf=a.out_pdf,
         url=a.url,
-        page_number=a.page,
-        x_value=a.x,
-        y_value=a.y,
-        unit=a.unit,
-        size_value=a.size,
-        size_unit=a.size_unit,
-        tol_pt=a.tol_pt,
-        paper_check=a.paper_check,
-        check_all_pages=a.check_all_pages,
-        paper_dim_mode=a.paper_dim_mode,
+        page_number=int(page),
+        x_value=float(x),
+        y_value=float(y),
+        unit=str(unit),
+        size_value=float(size),
+        size_unit=str(size_unit),
+        tol_pt=float(tol_pt),
+        paper_check=str(paper_check),
+        check_all_pages=bool(check_all_pages),
+        paper_dim_mode=str(paper_dim_mode),
     )
+
     insert_qr_into_pdf(params)
     print(f"OK: generado {params.output_pdf}")
-
 
 if __name__ == "__main__":
     main()
