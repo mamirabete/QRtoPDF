@@ -12,5 +12,8 @@
     "paper_check": "warn",
     "check_all_pages": false,
     "paper_dim_mode": "visible"
+  },
+  "web_client":{
+    "max_upload_mb": 20
   }
 }

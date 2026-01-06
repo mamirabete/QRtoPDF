@@ -172,6 +172,9 @@ Ejemplo de estructura:
     "paper_check": "warn",
     "check_all_pages": false,
     "paper_dim_mode": "visible"
+  },
+  "web_client": {
+    "max_upload_mb": 20
   }
 }
 ```
@@ -199,6 +202,14 @@ Ejemplo de estructura:
 | `paper_check`     | string | `warn` (advierte) o `strict` (aborta si no es A4/Carta). |
 | `check_all_pages` | bool   | Si es `true`, valida todas las páginas del PDF. |
 | `paper_dim_mode`  | string | `visible` (considera rotación) o `mediabox`. |
+
+---
+
+### Parámetros configurables – Sección `web_client` (sólo WEB)
+
+| Clave              | Tipo   | Descripción |
+|-------------------|--------|-------------|
+| `max_upload_mb`   | int    | Tamaño máximo permitido en MB para el PDF subido. |
 
 ---
 

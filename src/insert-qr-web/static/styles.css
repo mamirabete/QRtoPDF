@@ -64,3 +64,26 @@ hr { border: none; border-top: 1px solid #e6e6e6; margin: 14px 0; }
 /* Result page */
 pre { background:#0b1020; color:#d6e3ff; padding: 12px; border-radius: 10px; overflow:auto; }
 a { word-break: break-all; }
+
+/* Alertas (errores / avisos) */
+.alert {
+  border: 1px solid #f2b8b5;
+  background: #fff5f5;
+  color: #7a1f1a;
+  border-radius: 10px;
+  padding: 12px;
+  margin: 12px 0;
+}
+
+.alert-title {
+  font-weight: 700;
+  margin-bottom: 6px;
+}
+
+.alert small {
+  color: #7a1f1a;
+}
+
+.alert .hint {
+  margin-top: 8px;
+}

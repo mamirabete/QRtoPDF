@@ -8,6 +8,7 @@
 </head>
 <body>
   <h2>Insertar QR en PDF (Flask)</h2>
+
   <p class="muted">
     {{ "Config cargado desde: " + config_path if has_config else "No se detectó config.json; se usan valores por defecto." }}
   </p>
@@ -15,6 +16,19 @@
   {% if not token %}
     <div class="card">
       <h3>1) Subir PDF</h3>
+
+      <p class="muted">Límite de subida: <strong>{{ max_upload_mb }}</strong> MB</p>
+
+      {% if error_message %}
+        <div class="alert" role="alert" aria-live="polite">
+          <div class="alert-title">No se pudo subir el archivo</div>
+          <div>{{ error_message }}</div>
+          <div class="hint">
+            <small>Tip: probá reducir el tamaño del PDF o comprimirlo antes de subirlo.</small>
+          </div>
+        </div>
+      {% endif %}
+
       <form action="/upload" method="post" enctype="multipart/form-data">
         <label>PDF</label>
         <input type="file" name="pdf" accept="application/pdf" required />
@@ -23,6 +37,7 @@
         </div>
       </form>
     </div>
+
   {% else %}
 
     <!-- Data para el JS -->
