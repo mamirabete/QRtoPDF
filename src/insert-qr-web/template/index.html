@@ -15,16 +15,21 @@
     button { padding: 10px 12px; cursor: pointer; }
     .muted { color:#666; font-size: 12px; }
 
-    /* Preview */
     .previewWrap { border: 1px solid #ddd; border-radius: 10px; padding: 12px; }
     .toolbar { display:flex; gap: 8px; align-items:center; margin-bottom: 10px; }
-    .viewerOuter { overflow: auto; border: 1px solid #eee; border-radius: 10px; background: #fafafa; }
+
+    .viewerOuter { overflow: auto; border: 1px solid #eee; border-radius: 10px; background: #fafafa; padding: 10px; }
+
+    /* Importante: viewer se escala, pero internamente maneja coords BASE */
     .viewer {
       position: relative;
       transform-origin: top left;
       display: inline-block;
     }
+
     #pageImg { display:block; user-select:none; -webkit-user-drag:none; }
+
+    /* Overlay en coords BASE (sin zoom). */
     #qrOverlay {
       position:absolute;
       left: 40px;
@@ -36,6 +41,7 @@
       cursor: move;
       background: rgba(255,255,255,0.0);
     }
+
     #qrOverlay .badge {
       position:absolute;
       top:-22px; left:0;
@@ -187,6 +193,10 @@
     const zoomLabel = document.getElementById("zoomLabel");
     let zoom = 1.0;
 
+    // Estado de página (visible pt) para mapear px <-> pt
+    let pageWpt = 0;
+    let pageHpt = 0;
+
     // Conversion helpers (pt <-> unit)
     function ptToUnit(pt, unit) {
       unit = unit.toLowerCase();
@@ -203,31 +213,27 @@
       return val;
     }
 
-    // Estado de página (visible pt) para mapear px <-> pt
-    let pageWpt = 0;
-    let pageHpt = 0;
-
-    // Carga preview
     async function loadPage() {
       const p = Math.max(1, Math.min(pages, parseInt(pageInput.value || "1")));
       pageInput.value = p;
 
-      // Imagen preview
       pageImg.src = `/preview/${token}/${p}?t=${Date.now()}`;
       await pageImg.decode().catch(()=>{});
 
-      // Page info (pt)
+      // Importante: fijar tamaño base = natural (coords base estables)
+      pageImg.style.width = pageImg.naturalWidth + "px";
+      pageImg.style.height = pageImg.naturalHeight + "px";
+
       const info = await fetch(`/pageinfo/${token}/${p}`).then(r => r.json());
       pageWpt = info.width_pt;
       pageHpt = info.height_pt;
 
       pageMeta.textContent = `Página ${p} — tamaño visible: ${pageWpt.toFixed(2)} x ${pageHpt.toFixed(2)} pt`;
 
-      // Posicionar overlay según inputs (visuales: arriba-izquierda)
       applyInputsToOverlay();
     }
 
-    // Aplicar inputs -> overlay (px)
+    // Inputs -> overlay (en px BASE)
     function applyInputsToOverlay() {
       if (!pageImg.naturalWidth || !pageImg.naturalHeight || !pageWpt || !pageHpt) return;
 
@@ -241,44 +247,31 @@
       const yPt = unitToPt(y, u);
       const sizePt = unitToPt(s, su);
 
-      // pt (visual) -> px en imagen renderizada
       const sx = pageImg.naturalWidth / pageWpt;
       const sy = pageImg.naturalHeight / pageHpt;
 
       const leftPx = xPt * sx;
       const topPx  = yPt * sy;
-      const sizePxW = sizePt * sx;
-      const sizePxH = sizePt * sy;
+      const sizePx = sizePt * sx; // usamos sx para el lado
 
       overlay.style.left = `${leftPx}px`;
-      overlay.style.top = `${topPx}px`;
-      overlay.style.width = `${sizePxW}px`;
-      overlay.style.height = `${sizePxH}px`;
+      overlay.style.top  = `${topPx}px`;
+      overlay.style.width = `${sizePx}px`;
+      overlay.style.height = `${sizePx}px`;
     }
 
-    // Overlay -> inputs (cuando arrastra)
+    // Overlay -> inputs (leer coords BASE sin afectar por zoom)
     function applyOverlayToInputs() {
       if (!pageImg.naturalWidth || !pageImg.naturalHeight || !pageWpt || !pageHpt) return;
 
-      const rect = overlay.getBoundingClientRect();
-      const imgRect = pageImg.getBoundingClientRect();
+      const leftPx = overlay.offsetLeft;   // BASE
+      const topPx  = overlay.offsetTop;    // BASE
+      const wPx    = overlay.offsetWidth;  // BASE
 
-      // posición relativa a la imagen (en px visibles en pantalla)
-      // pero overlay está dentro del viewer y se escala por CSS transform.
-      // Usamos naturalWidth con ratio de clientWidth para compensar el zoom CSS.
-      const scaleX = pageImg.naturalWidth / pageImg.clientWidth;
-      const scaleY = pageImg.naturalHeight / pageImg.clientHeight;
-
-      const leftPx = (rect.left - imgRect.left) * scaleX;
-      const topPx = (rect.top - imgRect.top) * scaleY;
-      const wPx = rect.width * scaleX;
-
-      // px -> pt visual
       const xPt = leftPx * (pageWpt / pageImg.naturalWidth);
       const yPt = topPx  * (pageHpt / pageImg.naturalHeight);
       const sizePt = wPx * (pageWpt / pageImg.naturalWidth);
 
-      // pt -> unidad
       const u = unitSel.value;
       const su = sizeUnitSel.value;
 
@@ -287,7 +280,7 @@
       sizeInput.value = ptToUnit(sizePt, su).toFixed(3);
     }
 
-    // Drag overlay
+    // Drag overlay (coords BASE, compensando zoom)
     let dragging = false;
     let dragOffsetX = 0;
     let dragOffsetY = 0;
@@ -295,8 +288,11 @@
     overlay.addEventListener("mousedown", (e) => {
       dragging = true;
       const r = overlay.getBoundingClientRect();
-      dragOffsetX = e.clientX - r.left;
-      dragOffsetY = e.clientY - r.top;
+
+      // offset en coords BASE
+      dragOffsetX = (e.clientX - r.left) / zoom;
+      dragOffsetY = (e.clientY - r.top) / zoom;
+
       e.preventDefault();
     });
 
@@ -307,19 +303,20 @@
     });
 
     document.addEventListener("mousemove", (e) => {
-      // Cursor coords
+      // Cursor coords (en base a imagen, independiente de zoom)
       if (pageImg.naturalWidth && pageWpt && pageHpt) {
         const imgRect = pageImg.getBoundingClientRect();
         const inside = e.clientX >= imgRect.left && e.clientX <= imgRect.right &&
                        e.clientY >= imgRect.top  && e.clientY <= imgRect.bottom;
-        if (inside) {
-          const scaleX = pageImg.naturalWidth / pageImg.clientWidth;
-          const scaleY = pageImg.naturalHeight / pageImg.clientHeight;
-          const px = (e.clientX - imgRect.left) * scaleX;
-          const py = (e.clientY - imgRect.top) * scaleY;
 
-          const xPt = px * (pageWpt / pageImg.naturalWidth);
-          const yPt = py * (pageHpt / pageImg.naturalHeight);
+        if (inside) {
+          // Convertir cursor a px BASE:
+          // (distancia en pantalla / zoom) porque imgRect ya está escalado
+          const pxBase = (e.clientX - imgRect.left) / zoom;
+          const pyBase = (e.clientY - imgRect.top)  / zoom;
+
+          const xPt = pxBase * (pageWpt / pageImg.naturalWidth);
+          const yPt = pyBase * (pageHpt / pageImg.naturalHeight);
 
           const u = unitSel.value;
           cursorInfo.textContent = `Cursor: x=${ptToUnit(xPt,u).toFixed(2)} ${u}, y=${ptToUnit(yPt,u).toFixed(2)} ${u}`;
@@ -330,27 +327,26 @@
 
       if (!dragging) return;
 
-      // Mover overlay dentro del viewer (en px "naturales" del contenedor)
       const viewerRect = viewer.getBoundingClientRect();
 
-      // Coordenadas relativas al viewer (NO a la ventana)
-      let left = (e.clientX - viewerRect.left - dragOffsetX);
-      let top  = (e.clientY - viewerRect.top  - dragOffsetY);
+      // mouse -> coords BASE del viewer
+      let leftBase = (e.clientX - viewerRect.left) / zoom - dragOffsetX;
+      let topBase  = (e.clientY - viewerRect.top)  / zoom - dragOffsetY;
 
-      // Clamp para que no salga de la imagen
       const ow = overlay.offsetWidth;
       const oh = overlay.offsetHeight;
 
-      left = Math.max(0, Math.min(left, pageImg.clientWidth - ow));
-      top  = Math.max(0, Math.min(top,  pageImg.clientHeight - oh));
+      const maxLeft = pageImg.naturalWidth - ow;
+      const maxTop  = pageImg.naturalHeight - oh;
 
-      // Convertir a coordenadas en el sistema del viewer sin zoom:
-      // como viewer está escalado, setear left/top en "px base" requiere dividir por zoom.
-      overlay.style.left = `${left / zoom}px`;
-      overlay.style.top  = `${top / zoom}px`;
+      leftBase = Math.max(0, Math.min(leftBase, maxLeft));
+      topBase  = Math.max(0, Math.min(topBase,  maxTop));
+
+      overlay.style.left = `${leftBase}px`;
+      overlay.style.top  = `${topBase}px`;
     });
 
-    // Zoom CSS
+    // Zoom (solo escala viewer)
     function setZoom(z) {
       zoom = Math.max(0.25, Math.min(4.0, z));
       viewer.style.transform = `scale(${zoom})`;
@@ -361,7 +357,6 @@
     document.getElementById("zoomOut").addEventListener("click", () => setZoom(zoom - 0.1));
     document.getElementById("btnReload").addEventListener("click", loadPage);
 
-    // Cuando cambia página o unidad o tamaño: refrescar overlay
     pageInput.addEventListener("change", loadPage);
     [xInput,yInput,unitSel,sizeInput,sizeUnitSel].forEach(el => el.addEventListener("input", applyInputsToOverlay));
 

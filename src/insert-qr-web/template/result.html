@@ -17,9 +17,7 @@
   <div class="card">
     {% if ok %}
       <p><strong>OK:</strong> PDF generado correctamente.</p>
-      <p>
-        <a href="{{output_url}}">Descargar PDF con QR</a>
-      </p>
+      <p><a href="{{output_url}}">Descargar PDF con QR</a></p>
     {% else %}
       <p><strong>Error:</strong> {{error}}</p>
     {% endif %}

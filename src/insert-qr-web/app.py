@@ -7,17 +7,20 @@ from pathlib import Path
 
 from flask import Flask, render_template, request, send_file, redirect, url_for, jsonify, abort
 
-# Preview PDF -> imagen
 import fitz  # PyMuPDF
 
-# Import backend (un nivel superior: src/insert_qr_pdf.py)
-SRC_DIR = Path(__file__).resolve().parents[1]  # .../src
+# -------------------------
+# Paths (según tu estructura)
+# -------------------------
+# app.py está en: src/insert-qr-web/app.py
+# insert_qr_pdf.py y config.json están en: src/
+SRC_DIR = Path(__file__).resolve().parents[1]   # .../src
 BACKEND_PATH = SRC_DIR / "insert_qr_pdf.py"
 CONFIG_PATH = SRC_DIR / "config.json"
 
-# Hacer import del script backend
-# Opción A: si src está en PYTHONPATH, podés hacer `import insert_qr_pdf`
-# Opción B: import dinámico por ruta (más robusto para esta estructura)
+# -------------------------
+# Import dinámico del backend (insert_qr_pdf.py)
+# -------------------------
 import importlib.util
 spec = importlib.util.spec_from_file_location("insert_qr_pdf", str(BACKEND_PATH))
 insert_qr_pdf = importlib.util.module_from_spec(spec)
@@ -40,11 +43,13 @@ def load_config(path: Path) -> dict:
 
 app = Flask(
     __name__,
-    template_folder="template",   # OJO: tu carpeta se llama "template"
+    template_folder="template",  # tu carpeta se llama "template"
     static_folder=None
 )
 
+# -------------------------
 # Storage
+# -------------------------
 BASE_DIR = Path(__file__).resolve().parent
 STORAGE_DIR = BASE_DIR / "storage"
 UPLOADS_DIR = STORAGE_DIR / "uploads"
@@ -54,10 +59,12 @@ PREVIEWS_DIR = STORAGE_DIR / "previews"
 for d in (STORAGE_DIR, UPLOADS_DIR, OUTPUTS_DIR, PREVIEWS_DIR):
     d.mkdir(parents=True, exist_ok=True)
 
+# -------------------------
+# Config defaults
+# -------------------------
 CONFIG = load_config(CONFIG_PATH)
-
-DEFAULTS = CONFIG.get("defaults", {})      # {page,x,y,unit,size,size_unit} :contentReference[oaicite:1]{index=1}
-VALIDATION = CONFIG.get("validation", {})  # {tol_pt,paper_check,check_all_pages,paper_dim_mode} :contentReference[oaicite:2]{index=2}
+DEFAULTS = CONFIG.get("defaults", {})       # :contentReference[oaicite:0]{index=0}
+VALIDATION = CONFIG.get("validation", {})   # :contentReference[oaicite:1]{index=1}
 
 
 def safe_int(x, default=1):
@@ -84,16 +91,15 @@ def get_pdf_page_count(pdf_path: Path) -> int:
 def get_page_visible_size_pt(pdf_path: Path, page_1based: int) -> tuple[float, float]:
     doc = fitz.open(str(pdf_path))
     page = doc.load_page(page_1based - 1)
-    rect = page.rect  # visible size en puntos (post-rotación visual)
+    rect = page.rect
     doc.close()
     return float(rect.width), float(rect.height)
 
 
-def render_preview_png(pdf_path: Path, page_1based: int, base_zoom: float = 2.0) -> Path:
+def render_preview_png(pdf_path: Path, token: str, page_1based: int, base_zoom: float = 2.0) -> Path:
     """
-    Renderiza la página a PNG (cacheado por token + page).
+    Renderiza la página a PNG (cacheado).
     """
-    token = pdf_path.stem  # lo estamos guardando con token como nombre
     out_path = PREVIEWS_DIR / f"{token}_p{page_1based}_z{base_zoom:.2f}.png"
     if out_path.exists():
         return out_path
@@ -113,9 +119,10 @@ def render_preview_png(pdf_path: Path, page_1based: int, base_zoom: float = 2.0)
 
 @app.get("/")
 def index():
-    # defaults desde config.json :contentReference[oaicite:3]{index=3}
     return render_template(
         "index.html",
+        token=None,
+        pages=None,
         defaults={
             "page": DEFAULTS.get("page", 1),
             "x": DEFAULTS.get("x", 2.0),
@@ -131,7 +138,7 @@ def index():
             "paper_dim_mode": VALIDATION.get("paper_dim_mode", "visible"),
         },
         has_config=bool(CONFIG),
-        config_path=str(CONFIG_PATH)
+        config_path=str(CONFIG_PATH),
     )
 
 
@@ -147,11 +154,8 @@ def upload():
     pdf_path = UPLOADS_DIR / f"{token}.pdf"
     f.save(str(pdf_path))
 
-    # Page count para UI
     n_pages = get_pdf_page_count(pdf_path)
-
-    # Redirigir a editor
-    return redirect(url_for("editor", token=token, pages=n_pages))
+    return redirect(url_for("editor", token=token))
 
 
 @app.get("/editor/<token>")
@@ -162,13 +166,12 @@ def editor(token):
 
     n_pages = get_pdf_page_count(pdf_path)
 
-    # Defaults desde config.json :contentReference[oaicite:4]{index=4}
     return render_template(
         "index.html",
         token=token,
         pages=n_pages,
         defaults={
-            "page": DEFAULTS.get("page", 1),
+            "page": min(DEFAULTS.get("page", 1), n_pages),
             "x": DEFAULTS.get("x", 2.0),
             "y": DEFAULTS.get("y", 3.0),
             "unit": DEFAULTS.get("unit", "cm"),
@@ -182,7 +185,7 @@ def editor(token):
             "paper_dim_mode": VALIDATION.get("paper_dim_mode", "visible"),
         },
         has_config=bool(CONFIG),
-        config_path=str(CONFIG_PATH)
+        config_path=str(CONFIG_PATH),
     )
 
 
@@ -192,8 +195,7 @@ def preview(token, page):
     if not pdf_path.exists():
         abort(404)
 
-    # Render fijo (el zoom del usuario es CSS/JS)
-    png_path = render_preview_png(pdf_path, page_1based=page, base_zoom=2.0)
+    png_path = render_preview_png(pdf_path, token=token, page_1based=page, base_zoom=2.0)
     return send_file(str(png_path), mimetype="image/png", as_attachment=False)
 
 
@@ -219,7 +221,7 @@ def apply(token):
 
     page = safe_int(request.form.get("page"), 1)
 
-    # Coordenadas VISUALES (origen arriba-izquierda) recibidas desde JS
+    # Recibimos coordenadas VISUALES (arriba-izquierda)
     x = safe_float(request.form.get("x"), DEFAULTS.get("x", 2.0))
     y = safe_float(request.form.get("y"), DEFAULTS.get("y", 3.0))
     unit = (request.form.get("unit") or DEFAULTS.get("unit", "cm")).strip().lower()
@@ -227,14 +229,13 @@ def apply(token):
     size = safe_float(request.form.get("size"), DEFAULTS.get("size", 4.0))
     size_unit = (request.form.get("size_unit") or DEFAULTS.get("size_unit", "cm")).strip().lower()
 
-    # Validación (defaults config) :contentReference[oaicite:5]{index=5}
+    # Validación desde UI/config
     tol_pt = safe_float(request.form.get("tol_pt"), VALIDATION.get("tol_pt", 3.0))
     paper_check = (request.form.get("paper_check") or VALIDATION.get("paper_check", "warn")).strip().lower()
     paper_dim_mode = (request.form.get("paper_dim_mode") or VALIDATION.get("paper_dim_mode", "visible")).strip().lower()
     check_all_pages = bool(request.form.get("check_all_pages") == "on")
 
-    # Convertir de coordenadas visuales (arriba-izq) a PDF (abajo-izq)
-    # usando alto visible en pt.
+    # Convertir visual -> PDF
     page_w_pt, page_h_pt = get_page_visible_size_pt(pdf_path, page)
     x_pt = to_points(x, unit)
     y_top_pt = to_points(y, unit)
@@ -260,7 +261,6 @@ def apply(token):
         paper_dim_mode=paper_dim_mode,
     )
 
-    # Ejecutar inserción (capturar prints)
     buf = io.StringIO()
     try:
         with contextlib.redirect_stdout(buf):
@@ -292,9 +292,13 @@ def download(token):
     out_path = OUTPUTS_DIR / f"{token}_out.pdf"
     if not out_path.exists():
         abort(404)
-    return send_file(str(out_path), mimetype="application/pdf", as_attachment=True, download_name=f"{token}_con_qr.pdf")
+    return send_file(
+        str(out_path),
+        mimetype="application/pdf",
+        as_attachment=True,
+        download_name=f"{token}_con_qr.pdf"
+    )
 
 
 if __name__ == "__main__":
-    # Para dev local:
     app.run(host="127.0.0.1", port=5000, debug=True)
