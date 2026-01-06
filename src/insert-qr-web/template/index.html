@@ -7,302 +7,134 @@
   <link rel="stylesheet" href="{{ url_for('static', filename='styles.css') }}">
 </head>
 <body>
-  <h2>Insertar QR en PDF</h2>
+  <h2>Insertar QR en PDF (Flask)</h2>
   <p class="muted">
     {{ "Config cargado desde: " + config_path if has_config else "No se detectó config.json; se usan valores por defecto." }}
   </p>
 
   {% if not token %}
-  <div class="card">
-    <h3>1) Subir PDF</h3>
-    <form action="/upload" method="post" enctype="multipart/form-data">
-      <label>PDF</label>
-      <input type="file" name="pdf" accept="application/pdf" required />
-      <div style="margin-top:12px;">
-        <button type="submit">Subir y abrir editor</button>
-      </div>
-    </form>
-  </div>
-  {% else %}
-
-  <div class="grid">
     <div class="card">
-      <h3>2) Parámetros</h3>
-
-      <form id="applyForm" action="/apply/{{token}}" method="post">
-        <label>URL</label>
-        <input name="url" id="url" placeholder="https://..." required />
-
-        <label>Página</label>
-        <input name="page" id="page" type="number" min="1" max="{{pages}}" value="{{defaults.page}}" />
-
-        <div class="row">
-          <div>
-            <label>X</label>
-            <input name="x" id="x" type="number" step="0.001" value="{{defaults.x}}" />
-          </div>
-          <div>
-            <label>Y</label>
-            <input name="y" id="y" type="number" step="0.001" value="{{defaults.y}}" />
-          </div>
+      <h3>1) Subir PDF</h3>
+      <form action="/upload" method="post" enctype="multipart/form-data">
+        <label>PDF</label>
+        <input type="file" name="pdf" accept="application/pdf" required />
+        <div style="margin-top:12px;">
+          <button type="submit">Subir y abrir editor</button>
         </div>
-
-        <label>Unidad (X/Y)</label>
-        <select name="unit" id="unit">
-          <option value="cm" {{ "selected" if defaults.unit=="cm" else "" }}>cm</option>
-          <option value="mm" {{ "selected" if defaults.unit=="mm" else "" }}>mm</option>
-          <option value="pt" {{ "selected" if defaults.unit=="pt" else "" }}>pt</option>
-        </select>
-
-        <div class="row">
-          <div>
-            <label>Tamaño (lado)</label>
-            <input name="size" id="size" type="number" step="0.001" value="{{defaults.size}}" />
-          </div>
-          <div>
-            <label>Unidad tamaño</label>
-            <select name="size_unit" id="size_unit">
-              <option value="cm" {{ "selected" if defaults.size_unit=="cm" else "" }}>cm</option>
-              <option value="mm" {{ "selected" if defaults.size_unit=="mm" else "" }}>mm</option>
-              <option value="pt" {{ "selected" if defaults.size_unit=="pt" else "" }}>pt</option>
-            </select>
-          </div>
-        </div>
-
-        <hr />
-
-        <h4>Validación (A4/Carta)</h4>
-        <label>Tolerancia (pt)</label>
-        <input name="tol_pt" id="tol_pt" type="number" step="0.01" value="{{validation.tol_pt}}" />
-
-        <label>paper_check</label>
-        <select name="paper_check" id="paper_check">
-          <option value="warn" {{ "selected" if validation.paper_check=="warn" else "" }}>warn</option>
-          <option value="strict" {{ "selected" if validation.paper_check=="strict" else "" }}>strict</option>
-        </select>
-
-        <label>paper_dim_mode</label>
-        <select name="paper_dim_mode" id="paper_dim_mode">
-          <option value="visible" {{ "selected" if validation.paper_dim_mode=="visible" else "" }}>visible</option>
-          <option value="mediabox" {{ "selected" if validation.paper_dim_mode=="mediabox" else "" }}>mediabox</option>
-        </select>
-
-        <label style="display:flex; gap:8px; align-items:center;">
-          <input type="checkbox" name="check_all_pages" id="check_all_pages" {{ "checked" if validation.check_all_pages else "" }} />
-          Validar todas las páginas
-        </label>
-
-        <div style="margin-top: 14px;">
-          <button type="submit">Insertar QR y generar PDF</button>
-        </div>
-
-        <p class="muted" style="margin-top:10px;">
-          Tip: mové el rectángulo rojo sobre la previsualización. X/Y/Size se actualizan automáticamente.
-        </p>
       </form>
     </div>
+  {% else %}
 
-    <div class="previewWrap">
-      <h3>3) Previsualización</h3>
+    <!-- Data para el JS -->
+    <div id="appData" data-token="{{ token }}" data-pages="{{ pages }}"></div>
 
-      <div class="toolbar">
-        <button type="button" id="btnReload">Recargar página</button>
-        <button type="button" id="zoomOut">-</button>
-        <span id="zoomLabel" class="muted">Zoom: 100%</span>
-        <button type="button" id="zoomIn">+</button>
-        <span class="muted" id="cursorInfo" style="margin-left:auto;">Cursor: —</span>
+    <div class="grid">
+      <div class="card">
+        <h3>2) Parámetros</h3>
+
+        <form id="applyForm" action="/apply/{{token}}" method="post">
+          <label>URL</label>
+          <input name="url" id="url" placeholder="https://..." required />
+
+          <label>Página</label>
+          <input name="page" id="page" type="number" min="1" max="{{pages}}" value="{{defaults.page}}" />
+
+          <div class="row">
+            <div>
+              <label>X</label>
+              <input name="x" id="x" type="number" step="0.001" value="{{defaults.x}}" />
+            </div>
+            <div>
+              <label>Y</label>
+              <input name="y" id="y" type="number" step="0.001" value="{{defaults.y}}" />
+            </div>
+          </div>
+
+          <label>Unidad (X/Y)</label>
+          <select name="unit" id="unit">
+            <option value="cm" {{ "selected" if defaults.unit=="cm" else "" }}>cm</option>
+            <option value="mm" {{ "selected" if defaults.unit=="mm" else "" }}>mm</option>
+            <option value="pt" {{ "selected" if defaults.unit=="pt" else "" }}>pt</option>
+          </select>
+
+          <div class="row">
+            <div>
+              <label>Tamaño (lado)</label>
+              <input name="size" id="size" type="number" step="0.001" value="{{defaults.size}}" />
+            </div>
+            <div>
+              <label>Unidad tamaño</label>
+              <select name="size_unit" id="size_unit">
+                <option value="cm" {{ "selected" if defaults.size_unit=="cm" else "" }}>cm</option>
+                <option value="mm" {{ "selected" if defaults.size_unit=="mm" else "" }}>mm</option>
+                <option value="pt" {{ "selected" if defaults.size_unit=="pt" else "" }}>pt</option>
+              </select>
+            </div>
+          </div>
+
+          <hr />
+
+          <h4>Validación (A4/Carta)</h4>
+          <label>Tolerancia (pt)</label>
+          <input name="tol_pt" id="tol_pt" type="number" step="0.01" value="{{validation.tol_pt}}" />
+
+          <label>paper_check</label>
+          <select name="paper_check" id="paper_check">
+            <option value="warn" {{ "selected" if validation.paper_check=="warn" else "" }}>warn</option>
+            <option value="strict" {{ "selected" if validation.paper_check=="strict" else "" }}>strict</option>
+          </select>
+
+          <label>paper_dim_mode</label>
+          <select name="paper_dim_mode" id="paper_dim_mode">
+            <option value="visible" {{ "selected" if validation.paper_dim_mode=="visible" else "" }}>visible</option>
+            <option value="mediabox" {{ "selected" if validation.paper_dim_mode=="mediabox" else "" }}>mediabox</option>
+          </select>
+
+          <label style="display:flex; gap:8px; align-items:center;">
+            <input type="checkbox" name="check_all_pages" id="check_all_pages" {{ "checked" if validation.check_all_pages else "" }} />
+            Validar todas las páginas
+          </label>
+
+          <div style="margin-top: 14px;">
+            <button type="submit">Insertar QR y generar PDF</button>
+          </div>
+
+          <p class="muted" style="margin-top:10px;">
+            Tip: mové el rectángulo rojo. Estiralo desde las esquinas para cambiar el tamaño proporcionalmente.
+          </p>
+        </form>
       </div>
 
-      <div class="viewerOuter">
-        <div class="viewer" id="viewer">
-          <img id="pageImg" alt="Preview" />
-          <div id="qrOverlay">
-            <div class="badge">QR</div>
+      <div class="previewWrap">
+        <h3>3) Previsualización</h3>
+
+        <div class="toolbar">
+          <button type="button" id="btnReload">Recargar página</button>
+          <button type="button" id="zoomOut">-</button>
+          <span id="zoomLabel" class="muted">Zoom: 100%</span>
+          <button type="button" id="zoomIn">+</button>
+          <span class="muted" id="cursorInfo" style="margin-left:auto;">Cursor: —</span>
+        </div>
+
+        <div class="viewerOuter">
+          <div class="viewer" id="viewer">
+            <img id="pageImg" alt="Preview" />
+            <div id="qrOverlay">
+              <div class="badge">QR</div>
+              <div class="handle tl" data-handle="tl"></div>
+              <div class="handle tr" data-handle="tr"></div>
+              <div class="handle bl" data-handle="bl"></div>
+              <div class="handle br" data-handle="br"></div>
+            </div>
           </div>
         </div>
+
+        <p class="muted" id="pageMeta"></p>
       </div>
-
-      <p class="muted" id="pageMeta"></p>
     </div>
-  </div>
 
-  <script>
-    const token = "{{token}}";
-    const pages = "{{pages}}";
-
-    const pageInput = document.getElementById("page");
-    const xInput = document.getElementById("x");
-    const yInput = document.getElementById("y");
-    const unitSel = document.getElementById("unit");
-    const sizeInput = document.getElementById("size");
-    const sizeUnitSel = document.getElementById("size_unit");
-
-    const pageImg = document.getElementById("pageImg");
-    const viewer = document.getElementById("viewer");
-    const overlay = document.getElementById("qrOverlay");
-    const cursorInfo = document.getElementById("cursorInfo");
-    const pageMeta = document.getElementById("pageMeta");
-
-    const zoomLabel = document.getElementById("zoomLabel");
-    let zoom = 1.0;
-
-    let pageWpt = 0;
-    let pageHpt = 0;
-
-    function ptToUnit(pt, unit) {
-      unit = unit.toLowerCase();
-      if (unit === "pt") return pt;
-      if (unit === "mm") return pt * (25.4 / 72.0);
-      if (unit === "cm") return pt * (2.54 / 72.0);
-      return pt;
-    }
-    function unitToPt(val, unit) {
-      unit = unit.toLowerCase();
-      if (unit === "pt") return val;
-      if (unit === "mm") return val * (72.0 / 25.4);
-      if (unit === "cm") return val * (72.0 / 2.54);
-      return val;
-    }
-
-    async function loadPage() {
-      const p = Math.max(1, Math.min(pages, parseInt(pageInput.value || "1")));
-      pageInput.value = p;
-
-      pageImg.src = `/preview/${token}/${p}?t=${Date.now()}`;
-      await pageImg.decode().catch(()=>{});
-
-      pageImg.style.width = pageImg.naturalWidth + "px";
-      pageImg.style.height = pageImg.naturalHeight + "px";
-
-      const info = await fetch(`/pageinfo/${token}/${p}`).then(r => r.json());
-      pageWpt = info.width_pt;
-      pageHpt = info.height_pt;
-
-      pageMeta.textContent = `Página ${p} — tamaño visible: ${pageWpt.toFixed(2)} x ${pageHpt.toFixed(2)} pt`;
-
-      applyInputsToOverlay();
-    }
-
-    function applyInputsToOverlay() {
-      if (!pageImg.naturalWidth || !pageWpt || !pageHpt) return;
-
-      const x = parseFloat(xInput.value || "0");
-      const y = parseFloat(yInput.value || "0");
-      const u = unitSel.value;
-      const s = parseFloat(sizeInput.value || "0");
-      const su = sizeUnitSel.value;
-
-      const xPt = unitToPt(x, u);
-      const yPt = unitToPt(y, u);
-      const sizePt = unitToPt(s, su);
-
-      const sx = pageImg.naturalWidth / pageWpt;
-
-      const leftPx = xPt * sx;
-      const topPx  = yPt * (pageImg.naturalHeight / pageHpt);
-      const sizePx = sizePt * sx;
-
-      overlay.style.left = `${leftPx}px`;
-      overlay.style.top  = `${topPx}px`;
-      overlay.style.width = `${sizePx}px`;
-      overlay.style.height = `${sizePx}px`;
-    }
-
-    function applyOverlayToInputs() {
-      if (!pageImg.naturalWidth || !pageWpt || !pageHpt) return;
-
-      const leftPx = overlay.offsetLeft;
-      const topPx  = overlay.offsetTop;
-      const wPx    = overlay.offsetWidth;
-
-      const xPt = leftPx * (pageWpt / pageImg.naturalWidth);
-      const yPt = topPx  * (pageHpt / pageImg.naturalHeight);
-      const sizePt = wPx * (pageWpt / pageImg.naturalWidth);
-
-      const u = unitSel.value;
-      const su = sizeUnitSel.value;
-
-      xInput.value = ptToUnit(xPt, u).toFixed(3);
-      yInput.value = ptToUnit(yPt, u).toFixed(3);
-      sizeInput.value = ptToUnit(sizePt, su).toFixed(3);
-    }
-
-    let dragging = false;
-    let dragOffsetX = 0;
-    let dragOffsetY = 0;
-
-    overlay.addEventListener("mousedown", (e) => {
-      dragging = true;
-      const r = overlay.getBoundingClientRect();
-      dragOffsetX = (e.clientX - r.left) / zoom;
-      dragOffsetY = (e.clientY - r.top) / zoom;
-      e.preventDefault();
-    });
-
-    document.addEventListener("mouseup", () => {
-      if (!dragging) return;
-      dragging = false;
-      applyOverlayToInputs();
-    });
-
-    document.addEventListener("mousemove", (e) => {
-      // cursor info
-      if (pageImg.naturalWidth && pageWpt && pageHpt) {
-        const imgRect = pageImg.getBoundingClientRect();
-        const inside = e.clientX >= imgRect.left && e.clientX <= imgRect.right &&
-                       e.clientY >= imgRect.top  && e.clientY <= imgRect.bottom;
-
-        if (inside) {
-          const pxBase = (e.clientX - imgRect.left) / zoom;
-          const pyBase = (e.clientY - imgRect.top)  / zoom;
-
-          const xPt = pxBase * (pageWpt / pageImg.naturalWidth);
-          const yPt = pyBase * (pageHpt / pageImg.naturalHeight);
-
-          const u = unitSel.value;
-          cursorInfo.textContent = `Cursor: x=${ptToUnit(xPt,u).toFixed(2)} ${u}, y=${ptToUnit(yPt,u).toFixed(2)} ${u}`;
-        } else {
-          cursorInfo.textContent = "Cursor: —";
-        }
-      }
-
-      if (!dragging) return;
-
-      const viewerRect = viewer.getBoundingClientRect();
-
-      let leftBase = (e.clientX - viewerRect.left) / zoom - dragOffsetX;
-      let topBase  = (e.clientY - viewerRect.top)  / zoom - dragOffsetY;
-
-      const ow = overlay.offsetWidth;
-      const oh = overlay.offsetHeight;
-
-      const maxLeft = pageImg.naturalWidth - ow;
-      const maxTop  = pageImg.naturalHeight - oh;
-
-      leftBase = Math.max(0, Math.min(leftBase, maxLeft));
-      topBase  = Math.max(0, Math.min(topBase,  maxTop));
-
-      overlay.style.left = `${leftBase}px`;
-      overlay.style.top  = `${topBase}px`;
-    });
-
-    function setZoom(z) {
-      zoom = Math.max(0.25, Math.min(4.0, z));
-      viewer.style.transform = `scale(${zoom})`;
-      zoomLabel.textContent = `Zoom: ${Math.round(zoom*100)}%`;
-    }
-
-    document.getElementById("zoomIn").addEventListener("click", () => setZoom(zoom + 0.1));
-    document.getElementById("zoomOut").addEventListener("click", () => setZoom(zoom - 0.1));
-    document.getElementById("btnReload").addEventListener("click", loadPage);
-
-    pageInput.addEventListener("change", loadPage);
-    [xInput,yInput,unitSel,sizeInput,sizeUnitSel].forEach(el => el.addEventListener("input", applyInputsToOverlay));
-
-    setZoom(1.0);
-    loadPage();
-  </script>
-
+    <!-- JS externo -->
+    <script src="{{ url_for('static', filename='editor.js') }}"></script>
   {% endif %}
 </body>
 </html>

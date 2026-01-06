@@ -26,6 +26,11 @@ El sistema ofrece dos modos de trabajo complementarios:
 | `.\src\insert_qr_pdf.py` | Script principal de inserción de QR en PDFs (CLI / backend). |
 | `.\src\gui_insert_qr.py` | Cliente gráfico PySide6/Qt con previsualización y drag & drop. |
 | `.\src\config.json` | Archivo de configuración con valores por defecto. |
+| `.\src\insert-qr-web\app.py` | Implementación de un cliente web con Flask. |
+| `.\src\insert-qr-web\static\styles.css` | Archivo que contiene código CSS (Cascading Style Sheets, Hojas de Estilo en Cascada). |
+| `.\src\insert-qr-web\static\editor.js` | Lógica del editor (preview, zoom, mover y redimensionar). |
+| `.\src\insert-qr-web\template\index.html` | Tmplate HTML para la pagina index.html donde se solicita la carga del PDF. |
+| `.\src\insert-qr-web\template\result.html` | Archivo con el template HTML para la pagina result.html donde muestra el editor. |
 | `requirements.txt` | Dependencias del proyecto. |
 | `README.md` | Documentación del proyecto. |
 
@@ -68,10 +73,16 @@ El sistema ofrece dos modos de trabajo complementarios:
 ### Dependencias (requirements.txt)
 
 ```
+blinker==1.9.0
 certifi==2026.1.4
 charset-normalizer==3.4.4
+click==8.3.1
 colorama==0.4.6
+Flask==3.1.2
 idna==3.11
+itsdangerous==2.2.0
+Jinja2==3.1.6
+MarkupSafe==3.0.3
 pillow==12.1.0
 PyMuPDF==1.26.7
 pypdf==6.5.0
@@ -83,6 +94,7 @@ reportlab==4.4.7
 requests==2.32.5
 shiboken6==6.10.1
 urllib3==2.6.2
+Werkzeug==3.1.4
 ```
 
 ### Instalación
@@ -308,7 +320,10 @@ El cliente WEB permite:
 
 - Subir un PDF desde el navegador.
 - Seleccionar la página destino.
-- **Ubicar el QR visualmente** sobre una previsualización (arrastrando un rectángulo rojo).
+- Renderizar una **previsualización** de la página seleccionada.
+- **Ubicar el QR visualmente** mediante un rectángulo rojo superpuesto:
+  - **Mover** el rectángulo (drag & drop).
+  - **Redimensionar proporcionalmente (1:1)** desde las **esquinas** para ajustar el tamaño del QR manteniendo la forma cuadrada.
 - Ajustar el **zoom** de la previsualización (+ / -) sin perder precisión en coordenadas.
 - Generar y descargar el PDF resultante con el QR insertado.
 
@@ -328,7 +343,8 @@ src/
     │   ├── index.html
     │   └── result.html
     ├── static/
-    │   └── styles.css
+    │   ├── styles.css
+    │   └── editor.js
     └── storage/
         ├── uploads/    # PDFs subidos (temporales)
         ├── outputs/    # PDFs generados
@@ -360,17 +376,19 @@ Por defecto se inicia en:
 2) **Subir PDF**:
    - Seleccionar un archivo `.pdf` y presionar “Subir y abrir editor”.
 
-3) **Seleccionar URL y página**:
+3) **Ingresar URL y seleccionar página**:
    - Ingresar la URL para el QR.
    - Indicar la página donde se insertará.
 
 4) **Ubicar el QR visualmente**:
-   - Arrastrar el rectángulo rojo “QR” sobre la previsualización.
-   - Los campos **X / Y** se actualizan automáticamente en la unidad seleccionada (cm/mm/pt).
+   - Sobre la previsualización, se muestra un rectángulo rojo “QR”.
+   - **Mover**: arrastrar el rectángulo para posicionarlo.
+   - **Cambiar tamaño (proporcional)**: arrastrar desde cualquiera de las **4 esquinas** (handles) para aumentar/disminuir el tamaño manteniendo forma cuadrada.
+   - Los campos **X / Y / Tamaño** se actualizan automáticamente en la unidad seleccionada (cm/mm/pt) al soltar el mouse.
 
 5) **Ajustar zoom**:
-   - Usar los botones **+ / -** para aumentar/disminuir.
-   - El sistema conserva coordenadas correctas al mover el rectángulo con zoom aplicado.
+   - Usar los botones **+ / -** para aumentar/disminuir el zoom.
+   - El sistema conserva coordenadas correctas al mover o redimensionar el rectángulo con zoom aplicado.
 
 6) **Generar PDF**:
    - Presionar “Insertar QR y generar PDF”.

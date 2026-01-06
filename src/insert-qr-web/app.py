@@ -1,4 +1,3 @@
-import os
 import uuid
 import json
 import io
@@ -9,10 +8,13 @@ from flask import Flask, render_template, request, send_file, redirect, url_for,
 
 import fitz  # PyMuPDF
 
+# app.py está en: src/insert-qr-web/app.py
+# insert_qr_pdf.py y config.json están en: src/
 SRC_DIR = Path(__file__).resolve().parents[1]   # .../src
 BACKEND_PATH = SRC_DIR / "insert_qr_pdf.py"
 CONFIG_PATH = SRC_DIR / "config.json"
 
+# Import dinámico del backend (insert_qr_pdf.py)
 import importlib.util
 spec = importlib.util.spec_from_file_location("insert_qr_pdf", str(BACKEND_PATH))
 insert_qr_pdf = importlib.util.module_from_spec(spec)
@@ -36,10 +38,11 @@ def load_config(path: Path) -> dict:
 app = Flask(
     __name__,
     template_folder="template",
-    static_folder="static",        # ✅ ahora existe
-    static_url_path="/static"      # ✅ URL de estáticos
+    static_folder="static",
+    static_url_path="/static",
 )
 
+# Storage
 BASE_DIR = Path(__file__).resolve().parent
 STORAGE_DIR = BASE_DIR / "storage"
 UPLOADS_DIR = STORAGE_DIR / "uploads"
@@ -202,6 +205,7 @@ def apply(token):
 
     page = safe_int(request.form.get("page"), 1)
 
+    # Recibimos coordenadas VISUALES (arriba-izquierda)
     x = safe_float(request.form.get("x"), DEFAULTS.get("x", 2.0))
     y = safe_float(request.form.get("y"), DEFAULTS.get("y", 3.0))
     unit = (request.form.get("unit") or DEFAULTS.get("unit", "cm")).strip().lower()
@@ -209,11 +213,13 @@ def apply(token):
     size = safe_float(request.form.get("size"), DEFAULTS.get("size", 4.0))
     size_unit = (request.form.get("size_unit") or DEFAULTS.get("size_unit", "cm")).strip().lower()
 
+    # Validación
     tol_pt = safe_float(request.form.get("tol_pt"), VALIDATION.get("tol_pt", 3.0))
     paper_check = (request.form.get("paper_check") or VALIDATION.get("paper_check", "warn")).strip().lower()
     paper_dim_mode = (request.form.get("paper_dim_mode") or VALIDATION.get("paper_dim_mode", "visible")).strip().lower()
     check_all_pages = bool(request.form.get("check_all_pages") == "on")
 
+    # Convertir visual -> PDF
     page_w_pt, page_h_pt = get_page_visible_size_pt(pdf_path, page)
     x_pt = to_points(x, unit)
     y_top_pt = to_points(y, unit)
@@ -274,7 +280,7 @@ def download(token):
         str(out_path),
         mimetype="application/pdf",
         as_attachment=True,
-        download_name=f"{token}_con_qr.pdf"
+        download_name=f"{token}_con_qr.pdf",
     )
 
 
